@@ -1,69 +1,89 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
-
-// Harvard coordinates
-const HARVARD_CENTER: [number, number] = [-71.1167, 42.3770];
-
-// Harvard Houses coordinates (accurate coordinates from data.cambridgema.gov)
-const HARVARD_HOUSES = [
-  { name: "Adams", address: "26 Plympton St", coordinates: [-71.116784, 42.371754] as [number, number] },
-  { name: "Cabot", address: "60 Linnaean St", coordinates: [-71.124724, 42.381210] as [number, number] },
-  { name: "Currier", address: "64 Linnaean St", coordinates: [-71.125743, 42.382171] as [number, number] },
-  { name: "Dunster", address: "945 Memorial Dr", coordinates: [-71.115827, 42.368632] as [number, number] },
-  { name: "Eliot", address: "101 Dunster St", coordinates: [-71.120821, 42.370232] as [number, number] },
-  { name: "Kirkland", address: "95 Dunster St", coordinates: [-71.120408, 42.370773] as [number, number] },
-  { name: "Leverett", address: "28 DeWolfe St", coordinates: [-71.116742, 42.369379] as [number, number] },
-  { name: "Lowell", address: "10 Holyoke Pl", coordinates: [-71.118213, 42.371178] as [number, number] },
-  { name: "Mather", address: "10 Cowperthwaite St", coordinates: [-71.115100, 42.368600] as [number, number] },
-  { name: "Pforzheimer", address: "56 Linnaean St", coordinates: [-71.124670, 42.381950] as [number, number] },
-  { name: "Quincy", address: "58 Plympton St", coordinates: [-71.117086, 42.371116] as [number, number] },
-  { name: "Winthrop", address: "32 Mill St", coordinates: [-71.118609, 42.370399] as [number, number] },
-];
+import { Search, Settings, User } from "lucide-react";
+import { LeftPanel } from "./LeftPanel";
+import { RightPanel } from "./RightPanel";
+import { MapView } from "./MapView";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 
 export function HomeMap() {
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
+  const mapRef = useRef<mapboxgl.Map | null>(null);
+  const [commandOpen, setCommandOpen] = useState(false);
 
-  useEffect(() => {
-    if (map.current || !mapContainer.current) return;
-
-    mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
-
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/light-v11",
-      center: HARVARD_CENTER,
-      zoom: 14,
-    });
-
-    // Add navigation controls
-    map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
-
-    // Add markers for each Harvard house
-    HARVARD_HOUSES.forEach((house) => {
-      new mapboxgl.Marker()
-        .setLngLat(house.coordinates)
-        .setPopup(
-          new mapboxgl.Popup().setHTML(
-            `<h3>${house.name} House</h3><p class="text-sm text-muted-foreground">${house.address}</p>`
-          )
-        )
-        .addTo(map.current!);
-    });
-
-    return () => {
-      map.current?.remove();
-      map.current = null;
-    };
+  const handleMapReady = useCallback((map: mapboxgl.Map) => {
+    mapRef.current = map;
   }, []);
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <div ref={mapContainer} className="flex-1 w-full" />
+    <div className="flex flex-col h-screen w-full px-4 pb-4">
+      {/* Top Bar */}
+      <header className="h-14 flex items-center shrink-0 gap-3">
+        {/* Left - Logo */}
+        <div className="w-80">
+          <h1 className="text-lg font-medium">powkie</h1>
+        </div>
+
+        {/* Center - Command */}
+        <div className="flex-1">
+          <Button
+            variant="outline"
+            className="w-full justify-start text-muted-foreground"
+            style={{ backgroundColor: "var(--app-secondary)" }}
+            onClick={() => setCommandOpen(true)}
+          >
+            <Search className="mr-2 h-4 w-4" />
+            <span>Search...</span>
+            <kbd className="pointer-events-none ml-auto inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+              <span className="text-xs">⌘</span>K
+            </kbd>
+          </Button>
+        </div>
+
+        {/* Right - Button Group */}
+        <div className="w-80 flex justify-end">
+          <ButtonGroup>
+            <Button variant="outline" size="icon">
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button variant="outline" size="icon">
+              <User className="h-4 w-4" />
+            </Button>
+          </ButtonGroup>
+        </div>
+      </header>
+
+      {/* Command Dialog */}
+      <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
+        <CommandInput placeholder="Type a command or search..." />
+        <CommandList>
+          <CommandEmpty>No results found.</CommandEmpty>
+          <CommandGroup heading="Suggestions">
+            <CommandItem>Search houses...</CommandItem>
+            <CommandItem>Go to settings</CommandItem>
+            <CommandItem>View profile</CommandItem>
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+
+      {/* Main Content */}
+      <div className="flex flex-1 gap-3 min-h-0">
+        <LeftPanel />
+        <div className="flex-1 rounded-xl overflow-hidden border border-border">
+          <MapView onMapReady={handleMapReady} />
+        </div>
+        <RightPanel />
+      </div>
     </div>
   );
 }
-
