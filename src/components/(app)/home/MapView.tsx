@@ -43,9 +43,6 @@ export function MapView({ onMapReady }: MapViewProps) {
       zoom: 14,
     });
 
-    // Add navigation controls
-    map.current.addControl(new mapboxgl.NavigationControl(), "top-right");
-
     // Add markers for each Harvard house
     HARVARD_HOUSES.forEach((house) => {
       new mapboxgl.Marker()
