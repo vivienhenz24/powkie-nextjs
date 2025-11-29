@@ -38,14 +38,18 @@ export function MapView({ onMapReady }: MapViewProps) {
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: "mapbox://styles/mapbox/light-v11",
+      // Dark mode themed map style
+      style: "mapbox://styles/mapbox/dark-v11",
       center: HARVARD_CENTER,
       zoom: 14,
     });
 
-    // Add markers for each Harvard house
+    // Add markers for each Harvard house - use a bright accent color so they
+    // remain distinct against the dark map
     HARVARD_HOUSES.forEach((house) => {
-      new mapboxgl.Marker()
+      new mapboxgl.Marker({
+        color: "#22c55e", // Tailwind emerald-500 style accent
+      })
         .setLngLat(house.coordinates)
         .setPopup(
           new mapboxgl.Popup().setHTML(

@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { DM_Sans } from "next/font/google";
 import "./globals.css";
+import { PageTransition } from "@/components/ui/page-transition";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -10,11 +11,12 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: "Powkie",
   description: "Welcome to Powkie",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
 };
 
 export default function RootLayout({
@@ -27,7 +29,7 @@ export default function RootLayout({
       <body
         className={`${dmSans.variable} antialiased`}
       >
-        {children}
+        <PageTransition>{children}</PageTransition>
       </body>
     </html>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import mapboxgl from "mapbox-gl";
 import { Search, Settings, User, Menu, X } from "lucide-react";
 import { LeftPanel } from "./LeftPanel";
@@ -16,16 +16,152 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 export function HomeMap() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const supabase = createSupabaseBrowserClient();
   const [commandOpen, setCommandOpen] = useState(false);
   const [leftPanelOpen, setLeftPanelOpen] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [displayName, setDisplayName] = useState("Player");
+  const [bio, setBio] = useState("");
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   const handleMapReady = useCallback((map: mapboxgl.Map) => {
     mapRef.current = map;
   }, []);
+
+  // Monitor auth state changes (session expiration, sign out, etc.)
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // If user is signed out or session is invalid, redirect to login
+      if (event === "SIGNED_OUT" || (!session && event !== "INITIAL_SESSION")) {
+        window.location.href = "/login";
+      }
+      // If token is refreshed, that's good - user stays logged in
+      // This ensures persistent sessions as requested
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  // Load profile when component mounts
+  useEffect(() => {
+    async function loadProfile() {
+      setProfileLoading(true);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          // If no user, redirect to login
+          window.location.href = "/login";
+          return;
+        }
+
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("user_id", user.id)
+          .single();
+
+        if (error && error.code !== "PGRST116") {
+          // PGRST116 is "not found" - that's okay, we'll use defaults
+          return;
+        }
+
+        if (profile) {
+          setDisplayName(profile.display_name || "Player");
+          setBio(profile.bio || "");
+        }
+      } catch (err) {
+        // Silently handle errors - don't spam console
+      } finally {
+        setProfileLoading(false);
+      }
+    }
+
+    loadProfile();
+  }, [supabase]);
+
+  // Load profile when dialog opens
+  useEffect(() => {
+    if (profileOpen) {
+      async function loadProfileForDialog() {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+
+          const { data: profile, error } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("user_id", user.id)
+            .single();
+
+          if (error && error.code !== "PGRST116") {
+            setProfileError("Failed to load profile");
+            return;
+          }
+
+          if (profile) {
+            setDisplayName(profile.display_name || "Player");
+            setBio(profile.bio || "");
+          }
+        } catch (err) {
+          setProfileError("Failed to load profile");
+        }
+      }
+
+      loadProfileForDialog();
+    }
+  }, [profileOpen, supabase]);
+
+  const handleSaveProfile = async () => {
+    setProfileSaving(true);
+    setProfileError(null);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setProfileError("You must be logged in to save your profile");
+        setProfileSaving(false);
+        return;
+      }
+
+      const { error } = await supabase.from("profiles").upsert({
+        user_id: user.id,
+        display_name: displayName || "Player",
+        bio: bio || "",
+      });
+
+      if (error) {
+        setProfileError(error.message);
+        setProfileSaving(false);
+        return;
+      }
+
+      setProfileOpen(false);
+    } catch (err) {
+      setProfileError("An unexpected error occurred");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen w-full px-2 sm:px-4 pb-2 sm:pb-4">
@@ -75,7 +211,12 @@ export function HomeMap() {
             <Button variant="outline" size="icon" className="h-9 w-9 sm:h-10 sm:w-10">
               <Settings className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="icon" className="h-9 w-9 sm:h-10 sm:w-10">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9 w-9 sm:h-10 sm:w-10"
+              onClick={() => setProfileOpen(true)}
+            >
               <User className="h-4 w-4" />
             </Button>
           </ButtonGroup>
@@ -90,10 +231,74 @@ export function HomeMap() {
           <CommandGroup heading="Suggestions">
             <CommandItem>Search houses...</CommandItem>
             <CommandItem>Go to settings</CommandItem>
-            <CommandItem>View profile</CommandItem>
+            <CommandItem onSelect={() => setProfileOpen(true)}>
+              View profile
+            </CommandItem>
           </CommandGroup>
         </CommandList>
       </CommandDialog>
+
+      {/* Profile dialog */}
+      <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Customize your profile</DialogTitle>
+            <DialogDescription>
+              Set how you&apos;ll appear to other players in powkie.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-2">
+            {profileError && (
+              <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-md p-3">
+                {profileError}
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <label htmlFor="displayName" className="text-sm font-medium">
+                Display name
+              </label>
+              <Input
+                id="displayName"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="e.g. RiverKing"
+                disabled={profileSaving}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="bio" className="text-sm font-medium">
+                Bio
+              </label>
+              <textarea
+                id="bio"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="Share your style (tight-aggressive, loose, etc.)"
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none min-h-[80px]"
+                disabled={profileSaving}
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setProfileOpen(false);
+                setProfileError(null);
+              }}
+              disabled={profileSaving}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveProfile}
+              disabled={profileSaving}
+            >
+              {profileSaving ? "Saving..." : "Save profile"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Main Content */}
       <div className="flex flex-1 gap-2 sm:gap-3 min-h-0 relative">

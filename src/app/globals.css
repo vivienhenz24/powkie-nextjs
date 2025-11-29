@@ -49,38 +49,38 @@ body {
 
 :root {
   --radius: 0.625rem;
-  --background: #F5F1E8;
-  --app-secondary: #FAF8F5;
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --background: oklch(0.145 0 0);
+  --app-secondary: oklch(0.18 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 .dark {
@@ -124,6 +124,9 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 /* Hide Mapbox branding and controls */
@@ -134,4 +137,729 @@ body {
 .mapboxgl-ctrl-compass,
 .mapboxgl-ctrl-group {
   display: none !important;
+}
+
+/* Realistic Shuffling Animations - Based on actual shuffling techniques */
+
+/* Cycle through shuffle types with circular fan-out */
+@keyframes cycle-shuffles-with-fan {
+  /* Phase 1: Stacked (0-5%) */
+  0%, 5% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+  
+  /* Phase 2: Fan out in circle (5-30%) */
+  8% {
+    transform: 
+      translateX(calc(var(--circle-x, 0px) * 0.3)) 
+      translateY(calc(var(--circle-y, 0px) * 0.3 + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--angle, 0deg) + 90deg)) 
+      scale(1.05);
+    opacity: 1;
+  }
+  
+  20% {
+    transform: 
+      translateX(calc(var(--circle-x, 0px) * 0.7)) 
+      translateY(calc(var(--circle-y, 0px) * 0.7 + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--angle, 0deg) + 90deg)) 
+      scale(1.1);
+    opacity: 1;
+  }
+  
+  25% {
+    transform: 
+      translateX(var(--circle-x, 0px)) 
+      translateY(calc(var(--circle-y, 0px) + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--angle, 0deg) + 90deg)) 
+      scale(1.15);
+    opacity: 1;
+  }
+  
+  /* Phase 3: Hold in circle (30-35%) - no movement, just stay fanned */
+  30%, 35% {
+    transform: 
+      translateX(var(--circle-x, 0px)) 
+      translateY(calc(var(--circle-y, 0px) + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--angle, 0deg) + 90deg)) 
+      scale(1.15);
+    opacity: 1;
+  }
+  
+  /* Phase 4: Return from circle (35-60%) - much faster return */
+  42% {
+    transform: 
+      translateX(calc(var(--circle-x, 0px) * 0.4)) 
+      translateY(calc(var(--circle-y, 0px) * 0.4 + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--angle, 0deg) * 0.4 + 36deg)) 
+      scale(1.06);
+    opacity: 1;
+  }
+  
+  52% {
+    transform: 
+      translateX(calc(var(--circle-x, 0px) * 0.15)) 
+      translateY(calc(var(--circle-y, 0px) * 0.15 + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--angle, 0deg) * 0.15 + 13.5deg)) 
+      scale(1.02);
+    opacity: 0.95;
+  }
+  
+  60% {
+    transform: 
+      translateX(0px) 
+      translateY(calc(-2px + var(--stack-offset, 0px))) 
+      rotateZ(0deg) 
+      scale(1.01);
+    opacity: 0.95;
+  }
+  
+  /* Phase 5: Stack back (60-65%) */
+  65% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+  
+  /* Phase 6: Up and down shuffle - cards cycle from front to back (65-90%) */
+  /* Cards move up in waves, with front cards (lower index) going up first and cycling to back */
+  68% {
+    /* Start - front cards begin to lift */
+    transform: 
+      translateX(0px) 
+      translateY(calc(var(--stack-offset, 0px) - (var(--card-index, 0) * 4px))) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+  
+  73% {
+    /* Front cards lift up - lower index cards go higher */
+    transform: 
+      translateX(0px) 
+      translateY(calc(var(--stack-offset, 0px) - 45px + (var(--card-index, 0) * 1px))) 
+      rotateZ(calc(var(--card-index, 0) * 1deg)) 
+      scale(1.1);
+    opacity: 1;
+  }
+  
+  80% {
+    /* Cards at peak - front cards are highest, ready to cycle to back */
+    transform: 
+      translateX(0px) 
+      translateY(calc(var(--stack-offset, 0px) - 60px + (var(--card-index, 0) * 2px))) 
+      rotateZ(calc(var(--card-index, 0) * 1.5deg)) 
+      scale(1.15);
+    opacity: 1;
+  }
+  
+  87% {
+    /* Cards descending - front cards moving to back position */
+    transform: 
+      translateX(0px) 
+      translateY(calc(var(--stack-offset, 0px) - 25px + ((var(--card-index, 0) + 8) * 0.3px))) 
+      rotateZ(calc((var(--card-index, 0) + 8) * 0.3deg)) 
+      scale(1.05);
+    opacity: 1;
+  }
+  
+  90% {
+    /* Cards settle - positions have cycled (front cards now at back) */
+    transform: 
+      translateX(0px) 
+      translateY(calc(var(--stack-offset, 0px) - 2px)) 
+      rotateZ(0deg) 
+      scale(1.01);
+    opacity: 0.95;
+  }
+  
+  /* Phase 7: Settle back to stack (90-100%) */
+  95% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+  
+  /* Seamless loop - match start state (100% = 0%) */
+  100% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+}
+
+/* Individual shuffle animations (kept for reference) */
+@keyframes riffle-shuffle {
+  0%, 15% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+  
+  /* Split deck in half */
+  20% {
+    transform: 
+      translateX(calc((var(--is-left, 0) * -50px - 25px))) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(calc((var(--is-left, 0) * -3deg - 1.5deg))) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+  
+  /* Lift halves up and angle them */
+  30% {
+    transform: 
+      translateX(calc((var(--is-left, 0) * -60px - 30px))) 
+      translateY(calc(-40px + var(--stack-offset, 0px))) 
+      rotateZ(calc((var(--is-left, 0) * -10deg - 5deg))) 
+      scale(1.15);
+    opacity: 1;
+  }
+  
+  /* Cards cascade down and interleave - riffle motion */
+  45% {
+    transform: 
+      translateX(calc((var(--is-left, 0) * -25px - 12.5px) + (var(--is-left, 0) * var(--position-in-half, 0) * 3px))) 
+      translateY(calc(-25px + var(--stack-offset, 0px) + (var(--is-left, 0) * var(--position-in-half, 0) * 2px))) 
+      rotateZ(calc((var(--is-left, 0) * -5deg - 2.5deg))) 
+      scale(1.1);
+    opacity: 1;
+  }
+  
+  50% {
+    transform: 
+      translateX(calc((var(--is-left, 0) * 10px + 5px) - ((1 - var(--is-left, 0)) * var(--position-in-half, 0) * 3px))) 
+      translateY(calc(-20px + var(--stack-offset, 0px) + ((1 - var(--is-left, 0)) * var(--position-in-half, 0) * 2px))) 
+      rotateZ(calc((var(--is-left, 0) * 5deg + 2.5deg))) 
+      scale(1.1);
+    opacity: 1;
+  }
+  
+  /* Cards settle together */
+  65% {
+    transform: 
+      translateX(0px) 
+      translateY(calc(-5px + var(--stack-offset, 0px))) 
+      rotateZ(0deg) 
+      scale(1.02);
+    opacity: 0.95;
+  }
+  
+  /* Return to stack */
+  85%, 100% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+}
+
+/* Overhand Shuffle - Pull small packets from deck and drop on top */
+@keyframes overhand-shuffle {
+  0%, 12% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+  
+  /* Pull packet out to the right */
+  20% {
+    transform: 
+      translateX(calc(40px + var(--card-index, 0) * 1.5px)) 
+      translateY(calc(-20px + var(--stack-offset, 0px))) 
+      rotateZ(calc(20deg + var(--card-index, 0) * 2deg)) 
+      scale(1.1);
+    opacity: 1;
+  }
+  
+  /* Lift packet higher */
+  35% {
+    transform: 
+      translateX(calc(50px + var(--card-index, 0) * 2px)) 
+      translateY(calc(-50px + var(--stack-offset, 0px))) 
+      rotateZ(calc(30deg + var(--card-index, 0) * 3deg)) 
+      scale(1.2);
+    opacity: 1;
+  }
+  
+  /* Drop packet on top */
+  50% {
+    transform: 
+      translateX(calc(20px + var(--card-index, 0) * 1px)) 
+      translateY(calc(-60px + var(--stack-offset, 0px))) 
+      rotateZ(calc(15deg + var(--card-index, 0) * 1.5deg)) 
+      scale(1.15);
+    opacity: 1;
+  }
+  
+  /* Settle back */
+  70% {
+    transform: 
+      translateX(0px) 
+      translateY(calc(-3px + var(--stack-offset, 0px))) 
+      rotateZ(0deg) 
+      scale(1.01);
+    opacity: 0.95;
+  }
+  
+  90%, 100% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+}
+
+/* Hindu Shuffle - Pull cards from bottom and place on top */
+@keyframes hindu-shuffle {
+  0%, 10% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+  
+  /* Pull cards from bottom to the right */
+  25% {
+    transform: 
+      translateX(calc(60px + var(--card-index, 0) * 2px)) 
+      translateY(calc(10px + var(--stack-offset, 0px))) 
+      rotateZ(calc(10deg + var(--card-index, 0) * 1deg)) 
+      scale(1.1);
+    opacity: 1;
+  }
+  
+  /* Lift cards up */
+  40% {
+    transform: 
+      translateX(calc(45px + var(--card-index, 0) * 1.5px)) 
+      translateY(calc(-30px + var(--stack-offset, 0px))) 
+      rotateZ(calc(5deg + var(--card-index, 0) * 0.5deg)) 
+      scale(1.15);
+    opacity: 1;
+  }
+  
+  /* Place on top */
+  55% {
+    transform: 
+      translateX(calc(10px + var(--card-index, 0) * 0.5px)) 
+      translateY(calc(-50px + var(--stack-offset, 0px))) 
+      rotateZ(calc(2deg + var(--card-index, 0) * 0.2deg)) 
+      scale(1.1);
+    opacity: 1;
+  }
+  
+  /* Return to stack */
+  75% {
+    transform: 
+      translateX(0px) 
+      translateY(calc(-2px + var(--stack-offset, 0px))) 
+      rotateZ(0deg) 
+      scale(1.01);
+    opacity: 0.95;
+  }
+  
+  95%, 100% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+}
+
+/* Faro Shuffle - Perfect interweaving of two halves */
+@keyframes faro-shuffle {
+  0%, 15% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scaleY(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+  
+  /* Split deck */
+  20% {
+    transform: 
+      translateX(calc((var(--is-left, 0) * -45px - 22.5px))) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(calc((var(--is-left, 0) * -2deg - 1deg))) 
+      scaleY(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+  
+  /* Lift and angle for interweaving */
+  30% {
+    transform: 
+      translateX(calc((var(--is-left, 0) * -50px - 25px))) 
+      translateY(calc(-25px + var(--stack-offset, 0px))) 
+      rotateZ(calc((var(--is-left, 0) * -4deg - 2deg))) 
+      scaleY(0.95);
+    opacity: 1;
+  }
+  
+  /* Perfect interweaving - cards slide between each other */
+  45% {
+    transform: 
+      translateX(calc((var(--is-left, 0) * -20px - 10px) + (var(--is-left, 0) * var(--position-in-half, 0) * 2.5px))) 
+      translateY(calc(-15px + var(--stack-offset, 0px) + (var(--is-left, 0) * var(--position-in-half, 0) * 1.5px))) 
+      rotateZ(calc((var(--is-left, 0) * -2deg - 1deg))) 
+      scaleY(0.9);
+    opacity: 1;
+  }
+  
+  50% {
+    transform: 
+      translateX(calc((var(--is-left, 0) * 8px + 4px) - ((1 - var(--is-left, 0)) * var(--position-in-half, 0) * 2.5px))) 
+      translateY(calc(-12px + var(--stack-offset, 0px) + ((1 - var(--is-left, 0)) * var(--position-in-half, 0) * 1.5px))) 
+      rotateZ(calc((var(--is-left, 0) * 2deg + 1deg))) 
+      scaleY(0.9);
+    opacity: 1;
+  }
+  
+  /* Merge together */
+  65% {
+    transform: 
+      translateX(0px) 
+      translateY(calc(-3px + var(--stack-offset, 0px))) 
+      rotateZ(0deg) 
+      scaleY(1);
+    opacity: 0.95;
+  }
+  
+  85%, 100% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scaleY(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+}
+
+/* Legacy Circle Shuffle - Cards fan out in full circle from left to right, shuffle, then return */
+@keyframes circle-shuffle {
+  /* Phase 1: Cards stacked in center - start and end state must match exactly */
+  0% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+  
+  8% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+  
+  /* Phase 2: Fan out into circle from left to right (10-30%) */
+  15% {
+    transform: 
+      translateX(calc(var(--circle-x, 0px) * 0.3)) 
+      translateY(calc(var(--circle-y, 0px) * 0.3 + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--angle, 0deg) + 90deg)) 
+      scale(1.05);
+    opacity: 1;
+  }
+  
+  25% {
+    transform: 
+      translateX(calc(var(--circle-x, 0px) * 0.7)) 
+      translateY(calc(var(--circle-y, 0px) * 0.7 + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--angle, 0deg) + 90deg)) 
+      scale(1.1);
+    opacity: 1;
+  }
+  
+  30% {
+    transform: 
+      translateX(var(--circle-x, 0px)) 
+      translateY(calc(var(--circle-y, 0px) + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--angle, 0deg) + 90deg)) 
+      scale(1.15);
+    opacity: 1;
+  }
+  
+  /* Phase 3: Hold in circle (30-40%) */
+  35%, 40% {
+    transform: 
+      translateX(var(--circle-x, 0px)) 
+      translateY(calc(var(--circle-y, 0px) + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--angle, 0deg) + 90deg)) 
+      scale(1.15);
+    opacity: 1;
+  }
+  
+  /* Phase 4: Shuffle - cards move to shuffled positions (40-60%) */
+  45% {
+    transform: 
+      translateX(calc(var(--shuffled-x, 0px) * 0.7)) 
+      translateY(calc(var(--shuffled-y, 0px) * 0.7 + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--shuffled-angle, 0deg) + 90deg + var(--card-index, 0) * 3deg)) 
+      scale(1.2);
+    opacity: 1;
+  }
+  
+  50% {
+    transform: 
+      translateX(calc(var(--shuffled-x, 0px) * 0.9)) 
+      translateY(calc(var(--shuffled-y, 0px) * 0.9 + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--shuffled-angle, 0deg) + 90deg + var(--card-index, 0) * 6deg)) 
+      scale(1.25);
+    opacity: 1;
+  }
+  
+  55% {
+    transform: 
+      translateX(var(--shuffled-x, 0px)) 
+      translateY(calc(var(--shuffled-y, 0px) + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--shuffled-angle, 0deg) + 90deg + var(--card-index, 0) * 8deg)) 
+      scale(1.3);
+    opacity: 1;
+  }
+  
+  60% {
+    transform: 
+      translateX(calc(var(--shuffled-x, 0px) * 0.9)) 
+      translateY(calc(var(--shuffled-y, 0px) * 0.9 + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--shuffled-angle, 0deg) + 90deg + var(--card-index, 0) * 6deg)) 
+      scale(1.25);
+    opacity: 1;
+  }
+  
+  /* Phase 5: Return to circle positions (60-75%) */
+  70% {
+    transform: 
+      translateX(calc(var(--circle-x, 0px) * 0.7)) 
+      translateY(calc(var(--circle-y, 0px) * 0.7 + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--angle, 0deg) + 90deg)) 
+      scale(1.15);
+    opacity: 1;
+  }
+  
+  75% {
+    transform: 
+      translateX(calc(var(--circle-x, 0px) * 0.5)) 
+      translateY(calc(var(--circle-y, 0px) * 0.5 + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--angle, 0deg) + 90deg)) 
+      scale(1.1);
+    opacity: 1;
+  }
+  
+  /* Phase 6: Come back together to center (75-92%) */
+  82% {
+    transform: 
+      translateX(calc(var(--circle-x, 0px) * 0.2)) 
+      translateY(calc(var(--circle-y, 0px) * 0.2 + var(--stack-offset, 0px))) 
+      rotateZ(calc(var(--angle, 0deg) * 0.3)) 
+      scale(1.05);
+    opacity: 0.95;
+  }
+  
+  88% {
+    transform: 
+      translateX(0px) 
+      translateY(calc(-1px + var(--stack-offset, 0px))) 
+      rotateZ(0deg) 
+      scale(1.005);
+    opacity: var(--card-opacity, 0.9);
+  }
+  
+  /* Phase 7: Stack back into deck and hold - must match 0% exactly (92-100%) */
+  92% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+  
+  100% {
+    transform: 
+      translateX(0px) 
+      translateY(var(--stack-offset, 0px)) 
+      rotateZ(0deg) 
+      scale(1);
+    opacity: var(--card-opacity, 0.9);
+  }
+}
+
+/* Page transition animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-enter {
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* Smooth link transitions */
+a {
+  transition: color 0.2s ease, opacity 0.2s ease, transform 0.2s ease;
+  transform: translateZ(0);
+  will-change: color, opacity;
+}
+
+/* Smooth button transitions */
+button {
+  transition: all 0.2s ease;
+  transform: translateZ(0);
+  will-change: transform, background-color, color;
+}
+
+/* Prevent animation jitter on navigation */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* GPU acceleration for animated elements */
+[class*="animate-"],
+[style*="animation"] {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Prevent initial animation jitter */
+@keyframes fadeInSmooth {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Ensure bounce animation is smooth */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0) translateZ(0);
+  }
+  50% {
+    transform: translateY(-25%) translateZ(0);
+  }
+}
+
+/* Prevent layout shifts during transitions */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+/* Smooth page transitions */
+.page-transition-enter {
+  animation: pageEnter 0.3s ease-out;
+}
+
+.page-transition-exit {
+  animation: pageExit 0.3s ease-in;
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateX(30px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes pageExit {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-30px) scale(0.95);
+  }
+}
+
+/* Text pop-up animations */
+@keyframes textPopUp {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.9);
+  }
+  60% {
+    transform: translateY(-5px) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.text-pop-up {
+  animation: textPopUp 0.6s ease-out forwards;
+  opacity: 0;
+}
+
+.text-pop-up-delay-1 {
+  animation: textPopUp 0.6s ease-out 0.1s forwards;
+  opacity: 0;
+}
+
+.text-pop-up-delay-2 {
+  animation: textPopUp 0.6s ease-out 0.2s forwards;
+  opacity: 0;
+}
+
+.text-pop-up-delay-3 {
+  animation: textPopUp 0.6s ease-out 0.3s forwards;
+  opacity: 0;
+}
+
+.text-pop-up-delay-4 {
+  animation: textPopUp 0.6s ease-out 0.4s forwards;
+  opacity: 0;
 }
