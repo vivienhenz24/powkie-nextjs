@@ -91,6 +91,7 @@ export function SignupForm() {
           user_id: authData.user.id,
           display_name: `${result.data.firstName} ${result.data.lastName}`,
           bio: "",
+          contact_email: result.data.email, // Store email for contact purposes
         });
 
         // Wait briefly for cookies to be set, then redirect
@@ -223,7 +224,7 @@ export function SignupForm() {
               disabled={loading}
               className="w-full h-12 text-base font-semibold bg-linear-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? "Creating account..." : "Join the Table"}
+              {loading ? "Creating account..." : "Ready to Play!"}
             </Button>
           </form>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, Trash2, MapPin, Calendar, Clock, DollarSign, Users, Edit2, Save, UserPlus, UserMinus, RefreshCw } from "lucide-react";
+import { X, Trash2, MapPin, Calendar, Clock, Users, Edit2, Save, UserPlus, UserMinus, RefreshCw, Mail, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
@@ -10,6 +10,7 @@ interface GameDetailBoxProps {
   game: {
     id: string;
     game_type: string;
+    location_name?: string | null;
     address: string;
     game_date: string;
     start_time: string;
@@ -46,11 +47,14 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
   
   // Edit form state
   const [gameType, setGameType] = useState(game.game_type);
+  const [locationName, setLocationName] = useState(game.location_name || "");
   const [address, setAddress] = useState(game.address);
   const [gameDate, setGameDate] = useState(game.game_date);
   const [startTime, setStartTime] = useState(game.start_time);
-  const [buyIn, setBuyIn] = useState(game.buy_in);
   const [maxPlayers, setMaxPlayers] = useState<string>(game.max_players?.toString() || "");
+  
+  // Host contact info
+  const [hostContact, setHostContact] = useState<{ email?: string; phone?: string } | null>(null);
 
   // Reload players list from database
   const reloadPlayers = useCallback(async () => {
@@ -63,9 +67,24 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
       try {
         const { data: hostProfile, error: hostError } = await supabase
           .from("profiles")
-          .select("display_name")
+          .select("display_name, contact_email, contact_phone")
           .eq("user_id", game.host_id)
           .single();
+        
+        // Set host contact info
+        // Try to get email from contact_email, or if host is current user, get from auth
+        let hostEmail = hostProfile?.contact_email;
+        if (!hostEmail && user && user.id === game.host_id) {
+          // If viewing own game, we can get email from current user
+          hostEmail = user.email || undefined;
+        }
+        
+        if (hostProfile || hostEmail) {
+          setHostContact({
+            email: hostEmail || undefined,
+            phone: hostProfile?.contact_phone || undefined,
+          });
+        }
 
         // Always add host, use fallback if profile not found
         playersList.push({
@@ -208,7 +227,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
   const handleSaveEdit = async () => {
     if (!isHost || !currentUserId) return;
 
-    if (!gameType || !address || !gameDate || !startTime || !buyIn) {
+    if (!gameType || !locationName || !address || !gameDate || !startTime) {
       setEditError("Please fill in all required fields.");
       return;
     }
@@ -250,15 +269,16 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
 
       const { data: updatedGame, error: updateError } = await supabase
         .from("games")
-        .update({
-          game_type: gameType,
-          address,
-          game_date: gameDate,
-          start_time: startTime,
-          buy_in: buyIn,
-          max_players: maxPlayers ? Number(maxPlayers) : null,
-          ...(addressChanged && { lng, lat }),
-        })
+            .update({
+              game_type: gameType,
+              location_name: locationName,
+              address,
+              game_date: gameDate,
+              start_time: startTime,
+              buy_in: "", // Temporarily disabled - will be implemented later
+              max_players: maxPlayers ? Number(maxPlayers) : null,
+              ...(addressChanged && { lng, lat }),
+            })
         .eq("id", game.id)
         .eq("host_id", currentUserId)
         .select()
@@ -272,7 +292,8 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
 
       setIsEditing(false);
       if (onGameUpdated && updatedGame) {
-        onGameUpdated(updatedGame);
+        // Ensure location_name is included in the updated game
+        onGameUpdated({ ...updatedGame, location_name: locationName || null });
       }
     } catch (err) {
       setEditError("An unexpected error occurred while updating the game.");
@@ -285,12 +306,12 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
   const handleCancelEdit = () => {
     setEditError(null);
     // Reset form to original values
-    setGameType(game.game_type);
-    setAddress(game.address);
-    setGameDate(game.game_date);
-    setStartTime(game.start_time);
-    setBuyIn(game.buy_in);
-    setMaxPlayers(game.max_players?.toString() || "");
+        setGameType(game.game_type);
+        setLocationName(game.location_name || "");
+        setAddress(game.address);
+        setGameDate(game.game_date);
+        setStartTime(game.start_time);
+        setMaxPlayers(game.max_players?.toString() || "");
     // Smooth transition out of edit mode
     setIsEditing(false);
   };
@@ -394,9 +415,17 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
             <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">
               {game.game_type}
             </h2>
-            <div className="flex items-center gap-2 text-sm sm:text-base text-muted-foreground">
-              <MapPin className="h-4 w-4" />
-              <span>{game.address}</span>
+            <div className="flex flex-col gap-1 text-sm sm:text-base text-muted-foreground">
+              {game.location_name && (
+                <div className="flex items-center gap-2 font-medium text-foreground">
+                  <MapPin className="h-4 w-4" />
+                  <span>{game.location_name}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                {!game.location_name && <MapPin className="h-4 w-4" />}
+                <span>{game.address}</span>
+              </div>
             </div>
           </div>
           <Button
@@ -428,7 +457,22 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
                   id="editGameType"
                   value={gameType}
                   onChange={(e) => setGameType(e.target.value)}
-                  placeholder="No Limit Texas Hold'em"
+                  placeholder="Texas Hold'em"
+                  className="h-9 text-sm"
+                  disabled={saving}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="editLocationName" className="text-sm font-medium">
+                  Location Name{" "}
+                  <span className="text-xs text-muted-foreground">(optional)</span>
+                </label>
+                <Input
+                  id="editLocationName"
+                  value={locationName}
+                  onChange={(e) => setLocationName(e.target.value)}
+                  placeholder="Currier Dining Hall"
                   className="h-9 text-sm"
                   disabled={saving}
                 />
@@ -478,20 +522,6 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="editBuyIn" className="text-sm font-medium">
-                  Buy-in
-                </label>
-                <Input
-                  id="editBuyIn"
-                  value={buyIn}
-                  onChange={(e) => setBuyIn(e.target.value)}
-                  placeholder="$50"
-                  className="h-9 text-sm"
-                  disabled={saving}
-                />
-              </div>
-
-              <div className="space-y-2">
                 <label htmlFor="editMaxPlayers" className="text-sm font-medium">
                   Max players{" "}
                   <span className="text-xs text-muted-foreground">(optional)</span>
@@ -524,13 +554,6 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
               <div>
                 <p className="text-xs text-muted-foreground">Time</p>
                 <p className="text-sm font-medium">{formatTime(game.start_time)}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors">
-              <DollarSign className="h-5 w-5 text-green-600" />
-              <div>
-                <p className="text-xs text-muted-foreground">Buy-in</p>
-                <p className="text-sm font-medium">{game.buy_in}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 hover:bg-white/10 transition-colors">
@@ -598,6 +621,37 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
               </div>
             )}
           </div>
+
+          {/* Host Contact */}
+          {hostContact && hostContact.email && (
+            <div>
+              <h3 className="text-base sm:text-lg font-semibold mb-3 flex items-center gap-2">
+                Contact Host
+              </h3>
+              <div className="space-y-2 p-4 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10">
+                <div className="flex items-center gap-3">
+                  <Mail className="h-4 w-4 text-green-600" />
+                  <a
+                    href={`mailto:${hostContact.email}`}
+                    className="text-sm text-foreground hover:text-green-600 transition-colors"
+                  >
+                    {hostContact.email}
+                  </a>
+                </div>
+                {hostContact.phone && (
+                  <div className="flex items-center gap-3">
+                    <Phone className="h-4 w-4 text-green-600" />
+                    <a
+                      href={`tel:${hostContact.phone}`}
+                      className="text-sm text-foreground hover:text-green-600 transition-colors"
+                    >
+                      {hostContact.phone}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

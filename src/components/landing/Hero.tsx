@@ -47,7 +47,7 @@ export function Hero() {
               Ready to play?
             </h1>
             <p className="text-xl text-muted-foreground text-pop-up-delay-1">
-              Join the table and start your poker journey
+             First game in Currier DHall at 10:00PM! Make an account to claim your spot!
             </p>
           </div>
 
@@ -57,7 +57,7 @@ export function Hero() {
               size="lg" 
               className="w-full sm:w-auto h-12 text-base font-semibold bg-linear-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
             >
-              <Link href="/signup">Join the Table</Link>
+              <Link href="/signup">Ready to Play</Link>
             </Button>
             <Button 
               asChild

@@ -8,6 +8,7 @@ import { PokerGameCard } from "./PokerGameCard";
 interface GameWithMeta {
   id: string;
   game_type: string;
+  location_name?: string | null;
   address: string;
   game_date: string;
   start_time: string;
@@ -159,6 +160,7 @@ export function RightPanel({ onGameSelect }: RightPanelProps) {
           return {
             id: g.id,
             game_type: g.game_type,
+            location_name: g.location_name,
             address: g.address,
             game_date: g.game_date,
             start_time: g.start_time,
@@ -296,8 +298,8 @@ export function RightPanel({ onGameSelect }: RightPanelProps) {
               You don&apos;t have any upcoming games yet.
             </p>
             <p className="text-pop-up-delay-1">
-              Once you create or join a game, it will show up here with the house,
-              time, buy-in, and players.
+              Once you create or join a game, it will show up here with the game type,
+              time, and players.
             </p>
           </div>
         )}
@@ -307,11 +309,11 @@ export function RightPanel({ onGameSelect }: RightPanelProps) {
             <div key={game.id} className="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: `${index * 100}ms` }}>
               <PokerGameCard
                 gameType={game.game_type}
+                locationName={game.location_name}
                 address={game.address}
                 date={new Date(game.game_date).toLocaleDateString()}
                 time={game.start_time}
                 players={game.playersCount}
-                buyIn={game.buy_in}
                 onClick={() => onGameSelect?.(game)}
               />
               <div className="flex justify-between items-center text-xs sm:text-sm">

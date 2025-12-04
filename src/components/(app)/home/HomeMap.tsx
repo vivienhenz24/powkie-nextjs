@@ -38,6 +38,8 @@ export function HomeMap() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [displayName, setDisplayName] = useState("Player");
   const [bio, setBio] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -83,7 +85,7 @@ export function HomeMap() {
 
         const { data: profile, error } = await supabase
           .from("profiles")
-          .select("*")
+          .select("display_name, bio, contact_email, contact_phone")
           .eq("user_id", user.id)
           .single();
 
@@ -92,9 +94,25 @@ export function HomeMap() {
           return;
         }
 
+        // Auto-sync email from auth if contact_email is missing
+        if (profile && !profile.contact_email && user.email) {
+          // Silently update the profile with the email from auth
+          await supabase.from("profiles").update({
+            contact_email: user.email,
+          }).eq("user_id", user.id);
+          // Update local state
+          setContactEmail(user.email);
+        }
+
         if (profile) {
           setDisplayName(profile.display_name || "Player");
           setBio(profile.bio || "");
+          // Use contact_email from profile, or fallback to user's auth email
+          setContactEmail(profile.contact_email || user.email || "");
+          setContactPhone(profile.contact_phone || "");
+        } else if (user.email) {
+          // If no profile exists yet, use auth email
+          setContactEmail(user.email);
         }
       } catch (err) {
         // Silently handle errors - don't spam console
@@ -116,7 +134,7 @@ export function HomeMap() {
 
           const { data: profile, error } = await supabase
             .from("profiles")
-            .select("*")
+            .select("display_name, bio, contact_email, contact_phone")
             .eq("user_id", user.id)
             .single();
 
@@ -128,6 +146,12 @@ export function HomeMap() {
           if (profile) {
             setDisplayName(profile.display_name || "Player");
             setBio(profile.bio || "");
+            // Use contact_email from profile, or fallback to user's auth email
+            setContactEmail(profile.contact_email || user.email || "");
+            setContactPhone(profile.contact_phone || "");
+          } else if (user.email) {
+            // If no profile exists yet, use auth email
+            setContactEmail(user.email);
           }
         } catch (err) {
           setProfileError("Failed to load profile");
@@ -150,10 +174,15 @@ export function HomeMap() {
         return;
       }
 
+      // Get email from auth if contact_email is not set
+      const emailToSave = contactEmail || user.email || null;
+      
       const { error } = await supabase.from("profiles").upsert({
         user_id: user.id,
         display_name: displayName || "Player",
         bio: bio || "",
+        contact_email: emailToSave,
+        contact_phone: contactPhone || null,
       });
 
       if (error) {
@@ -508,7 +537,7 @@ export function HomeMap() {
                 const formattedTime = `${hour12}:${minutes} ${ampm}`;
                 
                 // Create searchable text for filtering
-                const searchableText = `${game.game_type} ${game.address} ${formattedDate} ${formattedTime} ${game.buy_in}`.toLowerCase();
+                const searchableText = `${game.game_type} ${game.address} ${formattedDate} ${formattedTime}`.toLowerCase();
 
                 return (
                   <CommandItem
@@ -526,7 +555,7 @@ export function HomeMap() {
                         {game.address}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {formattedDate} • {formattedTime} • {game.buy_in}
+                        {formattedDate} • {formattedTime}
                       </div>
                     </div>
                   </CommandItem>
@@ -582,13 +611,56 @@ export function HomeMap() {
                 disabled={profileSaving}
               />
             </div>
+            <div className="space-y-1.5">
+              <label htmlFor="contactEmail" className="text-sm font-medium">
+                Contact Email{" "}
+                <span className="text-xs text-muted-foreground">(optional)</span>
+              </label>
+              <Input
+                id="contactEmail"
+                type="email"
+                value={contactEmail}
+                onChange={(e) => setContactEmail(e.target.value)}
+                placeholder="your.email@example.com"
+                disabled={profileSaving}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="contactPhone" className="text-sm font-medium">
+                Contact Phone{" "}
+                <span className="text-xs text-muted-foreground">(optional)</span>
+              </label>
+              <Input
+                id="contactPhone"
+                type="tel"
+                value={contactPhone}
+                onChange={(e) => setContactPhone(e.target.value)}
+                placeholder="(555) 123-4567"
+                disabled={profileSaving}
+              />
+            </div>
           </div>
           <DialogFooter className="mt-4">
             <Button
               variant="outline"
-              onClick={() => {
+              onClick={async () => {
                 setProfileOpen(false);
                 setProfileError(null);
+                // Reload profile data when canceling
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                  const { data: profile } = await supabase
+                    .from("profiles")
+                    .select("display_name, bio, contact_email, contact_phone")
+                    .eq("user_id", user.id)
+                    .single();
+                  if (profile) {
+                    setDisplayName(profile.display_name || "Player");
+                    setBio(profile.bio || "");
+                    setContactEmail(profile.contact_email || "");
+                    setContactPhone(profile.contact_phone || "");
+                  }
+                }
               }}
               disabled={profileSaving}
             >

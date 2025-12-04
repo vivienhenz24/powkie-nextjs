@@ -2,11 +2,11 @@
 
 interface PokerGameCardProps {
   gameType: string;
+  locationName?: string | null;
   address: string;
   date: string;
   time: string;
   players: number;
-  buyIn: string;
   onClick?: () => void;
 }
 
@@ -21,11 +21,11 @@ function formatTime(timeString: string): string {
 
 export function PokerGameCard({
   gameType,
+  locationName,
   address,
   date,
   time,
   players,
-  buyIn,
   onClick,
 }: PokerGameCardProps) {
   return (
@@ -38,9 +38,11 @@ export function PokerGameCard({
           <h3 className="font-medium text-sm sm:text-base text-foreground">
             {gameType}
           </h3>
+          {locationName && (
+            <p className="text-xs sm:text-sm font-medium text-foreground">{locationName}</p>
+          )}
           <p className="text-xs sm:text-sm text-muted-foreground">{address}</p>
         </div>
-        <span className="text-xs text-muted-foreground">{buyIn}</span>
       </div>
       <div className="space-y-1 text-xs sm:text-sm text-muted-foreground">
         <p>{date}</p>

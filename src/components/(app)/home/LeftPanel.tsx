@@ -9,6 +9,7 @@ interface LeftPanelProps {
   onGameCreated?: (game: {
     id: string;
     game_type: string;
+    location_name?: string | null;
     address: string;
     lng: number;
     lat: number;
@@ -22,10 +23,10 @@ interface LeftPanelProps {
 export function LeftPanel({ onGameCreated, onClose }: LeftPanelProps) {
   const supabase = createSupabaseBrowserClient();
   const [gameType, setGameType] = useState("");
+  const [locationName, setLocationName] = useState("");
   const [address, setAddress] = useState("");
   const [gameDate, setGameDate] = useState("");
   const [startTime, setStartTime] = useState("");
-  const [buyIn, setBuyIn] = useState("");
   const [maxPlayers, setMaxPlayers] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,8 +37,8 @@ export function LeftPanel({ onGameCreated, onClose }: LeftPanelProps) {
     setError(null);
     setSuccess(null);
 
-    if (!gameType || !address || !gameDate || !startTime || !buyIn) {
-      setError("Please fill in game, address, date, time, and buy-in.");
+    if (!gameType || !locationName || !address || !gameDate || !startTime) {
+      setError("Please fill in game, location name, address, date, and time.");
       return;
     }
 
@@ -83,12 +84,13 @@ export function LeftPanel({ onGameCreated, onClose }: LeftPanelProps) {
         .insert({
           host_id: user.id,
           game_type: gameType,
+          location_name: locationName,
           address,
           lng,
           lat,
           game_date: gameDate,
           start_time: startTime,
-          buy_in: buyIn,
+          buy_in: "", // Temporarily disabled - will be implemented later
           max_players: maxPlayers ? Number(maxPlayers) : null,
         })
         .select()
@@ -102,10 +104,10 @@ export function LeftPanel({ onGameCreated, onClose }: LeftPanelProps) {
 
       setSuccess("Game hosted successfully!");
       setGameType("");
+      setLocationName("");
       setAddress("");
       setGameDate("");
       setStartTime("");
-      setBuyIn("");
       setMaxPlayers("");
 
       if (insertData && onGameCreated) {
@@ -134,7 +136,7 @@ export function LeftPanel({ onGameCreated, onClose }: LeftPanelProps) {
         <div className="animate-in fade-in slide-in-from-top-2 duration-500">
           <h2 className="text-base sm:text-lg font-medium">Host a Game</h2>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Create a new game with its type, address, date, time, and buy-in.
+            Create a new game with its type, address, date, and time.
           </p>
         </div>
 
@@ -159,9 +161,24 @@ export function LeftPanel({ onGameCreated, onClose }: LeftPanelProps) {
               id="gameType"
               value={gameType}
               onChange={(e) => setGameType(e.target.value)}
-              placeholder="No Limit Texas Hold'em"
+              placeholder="Texas Hold'em"
               className="h-8 sm:h-9 text-xs sm:text-sm transition-all duration-200 focus:scale-[1.02]"
               disabled={loading}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="locationName" className="font-medium">
+              Location Name
+            </label>
+            <Input
+              id="locationName"
+              value={locationName}
+              onChange={(e) => setLocationName(e.target.value)}
+              placeholder="Currier Dining Hall"
+              className="h-8 sm:h-9 text-xs sm:text-sm"
+              disabled={loading}
+              required
             />
           </div>
 
@@ -206,20 +223,6 @@ export function LeftPanel({ onGameCreated, onClose }: LeftPanelProps) {
                 disabled={loading}
               />
             </div>
-          </div>
-
-          <div className="space-y-1">
-            <label htmlFor="buyIn" className="font-medium">
-              Buy-in
-            </label>
-            <Input
-              id="buyIn"
-              value={buyIn}
-              onChange={(e) => setBuyIn(e.target.value)}
-              placeholder="$50"
-              className="h-8 sm:h-9 text-xs sm:text-sm"
-              disabled={loading}
-            />
           </div>
 
           <div className="space-y-1">
