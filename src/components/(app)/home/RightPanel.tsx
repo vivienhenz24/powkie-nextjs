@@ -270,12 +270,12 @@ export function RightPanel({ onGameSelect }: RightPanelProps) {
 
   return (
     <div
-      className="h-full w-full md:w-80 bg-card/60 backdrop-blur-xl border border-white/20 rounded-lg md:rounded-xl overflow-y-auto shadow-lg transition-all duration-300 hover:shadow-xl hover:border-white/30"
+      className="h-full w-full md:w-80 bg-card/60 backdrop-blur-xl border border-white/20 rounded-lg md:rounded-xl overflow-y-auto md:overflow-y-auto shadow-lg transition-all duration-300 hover:shadow-xl hover:border-white/30 flex flex-col"
       style={{
         boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.37)",
       }}
     >
-      <div className="p-3 sm:p-4 space-y-3">
+      <div className="p-3 sm:p-4 space-y-3 flex-1 min-h-0">
         <h2 className="text-base sm:text-lg font-medium animate-in fade-in slide-in-from-top-2 duration-500">Upcoming Games</h2>
 
         {error && (
@@ -311,9 +311,15 @@ export function RightPanel({ onGameSelect }: RightPanelProps) {
                 gameType={game.game_type}
                 locationName={game.location_name}
                 address={game.address}
-                date={new Date(game.game_date).toLocaleDateString()}
+                date={(() => {
+                  // Parse date string as local date to avoid timezone issues
+                  const [year, month, day] = game.game_date.split('-').map(Number);
+                  const date = new Date(year, month - 1, day);
+                  return date.toLocaleDateString();
+                })()}
                 time={game.start_time}
                 players={game.playersCount}
+                maxPlayers={game.max_players}
                 onClick={() => onGameSelect?.(game)}
               />
               <div className="flex justify-between items-center text-xs sm:text-sm">

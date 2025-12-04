@@ -34,7 +34,6 @@ export function HomeMap() {
   const supabase = createSupabaseBrowserClient();
   const [commandOpen, setCommandOpen] = useState(false);
   const [leftPanelOpen, setLeftPanelOpen] = useState(false);
-  const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [displayName, setDisplayName] = useState("Player");
   const [bio, setBio] = useState("");
@@ -452,11 +451,7 @@ export function HomeMap() {
             size="icon"
             className="md:hidden h-8 w-8 transition-all duration-200 hover:scale-110 active:scale-95"
             onClick={() => {
-              setLeftPanelOpen((open) => {
-                const next = !open;
-                if (next) setRightPanelOpen(false);
-                return next;
-              });
+              setLeftPanelOpen((open) => !open);
             }}
           >
             {leftPanelOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
@@ -482,20 +477,6 @@ export function HomeMap() {
 
         {/* Right - Button Group */}
         <div className="flex items-center gap-2 sm:w-80 sm:justify-end">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden h-8 w-8 transition-all duration-200 hover:scale-110 active:scale-95"
-            onClick={() => {
-              setRightPanelOpen((open) => {
-                const next = !open;
-                if (next) setLeftPanelOpen(false);
-                return next;
-              });
-            }}
-          >
-            {rightPanelOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-          </Button>
           <ButtonGroup className="hidden sm:flex">
             <Button 
               variant="outline" 
@@ -525,7 +506,9 @@ export function HomeMap() {
           {searchGames.length > 0 && (
             <CommandGroup heading="Available Games">
               {searchGames.map((game) => {
-                const gameDate = new Date(game.game_date);
+                // Parse date string as local date to avoid timezone issues
+                const [year, month, day] = game.game_date.split('-').map(Number);
+                const gameDate = new Date(year, month - 1, day);
                 const formattedDate = gameDate.toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
@@ -698,28 +681,33 @@ export function HomeMap() {
             }}
           />
         </div>
-        {/* Mobile Left Panel Drawer */}
+        {/* Mobile Left Panel - Full Screen with backdrop blur */}
         {leftPanelOpen && (
-          <div className="md:hidden absolute left-0 top-0 bottom-0 z-50 w-80 shadow-2xl animate-in slide-in-from-left-4 fade-in duration-300">
-            <LeftPanel
-              onGameCreated={(game) => {
-                if (!mapRef.current) return;
-                const marker = new mapboxgl.Marker({ color: "#22c55e" })
-                  .setLngLat([game.lng, game.lat])
-                  .addTo(mapRef.current);
+          <>
+            {/* Backdrop blur for content behind */}
+            <div className="md:hidden absolute inset-0 z-40 bg-black/20 backdrop-blur-md animate-in fade-in duration-300" />
+            {/* Full screen panel */}
+            <div className="md:hidden absolute inset-0 z-50 shadow-2xl animate-in fade-in duration-300">
+              <LeftPanel
+                onGameCreated={(game) => {
+                  if (!mapRef.current) return;
+                  const marker = new mapboxgl.Marker({ color: "#22c55e" })
+                    .setLngLat([game.lng, game.lat])
+                    .addTo(mapRef.current);
 
-                // Add click handler
-                const el = marker.getElement();
-                el.addEventListener("click", () => {
-                  setSelectedGame(game);
-                });
-                el.style.cursor = "pointer";
+                  // Add click handler
+                  const el = marker.getElement();
+                  el.addEventListener("click", () => {
+                    setSelectedGame(game);
+                  });
+                  el.style.cursor = "pointer";
 
-                markersRef.current.set(game.id, marker);
-              }}
-              onClose={() => setLeftPanelOpen(false)}
-            />
-          </div>
+                  markersRef.current.set(game.id, marker);
+                }}
+                onClose={() => setLeftPanelOpen(false)}
+              />
+            </div>
+          </>
         )}
 
         {/* Map - Full width on mobile */}
@@ -735,27 +723,15 @@ export function HomeMap() {
           )}
         </div>
 
-        {/* Right Panel - Always visible on desktop, drawer on mobile */}
+        {/* Right Panel - Always visible on desktop and mobile */}
         <div className="hidden md:block animate-in slide-in-from-right-4 fade-in duration-500">
           <RightPanel onGameSelect={setSelectedGame} />
         </div>
-        {/* Mobile Right Panel Drawer */}
-        {rightPanelOpen && (
-          <div className="md:hidden absolute right-0 top-0 bottom-0 z-50 w-80 shadow-2xl animate-in slide-in-from-right-4 fade-in duration-300">
-            <RightPanel onGameSelect={setSelectedGame} />
-          </div>
-        )}
+        {/* Mobile Right Panel - Always visible bottom sheet */}
+        <div className="md:hidden absolute left-0 right-0 bottom-0 z-50 h-[33vh] shadow-2xl rounded-t-2xl overflow-hidden">
+          <RightPanel onGameSelect={setSelectedGame} />
+        </div>
 
-        {/* Mobile overlay when panel is open */}
-        {(leftPanelOpen || rightPanelOpen) && (
-          <div
-            className="md:hidden absolute inset-0 bg-black/30 backdrop-blur-sm z-40"
-            onClick={() => {
-              setLeftPanelOpen(false);
-              setRightPanelOpen(false);
-            }}
-          />
-        )}
       </div>
     </div>
   );

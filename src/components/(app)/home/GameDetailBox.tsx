@@ -376,7 +376,9 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    // Parse date string as local date to avoid timezone issues
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
     return date.toLocaleDateString("en-US", {
       weekday: "long",
       year: "numeric",
@@ -562,7 +564,13 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
               <div>
                 <p className="text-xs text-muted-foreground">Players</p>
                 <p className="text-sm font-medium">
-                  {loading ? "Loading..." : `${players.length}${game.max_players ? ` / ${game.max_players}` : ""}`}
+                  {loading ? "Loading..." : (() => {
+                    const currentPlayers = players.length;
+                    const availableSeats = game.max_players ? game.max_players - currentPlayers : null;
+                    return availableSeats !== null 
+                      ? `${currentPlayers} players (${availableSeats} seats available)`
+                      : `${currentPlayers} players`;
+                  })()}
                 </p>
               </div>
             </div>

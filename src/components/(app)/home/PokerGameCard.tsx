@@ -7,6 +7,7 @@ interface PokerGameCardProps {
   date: string;
   time: string;
   players: number;
+  maxPlayers?: number | null;
   onClick?: () => void;
 }
 
@@ -26,8 +27,14 @@ export function PokerGameCard({
   date,
   time,
   players,
+  maxPlayers,
   onClick,
 }: PokerGameCardProps) {
+  const availableSeats = maxPlayers ? maxPlayers - players : null;
+  const playersText = availableSeats !== null 
+    ? `${players} players (${availableSeats} seats available)`
+    : `${players} players`;
+
   return (
     <div 
       className="p-3 sm:p-4 rounded-lg border border-white/20 bg-white/5 backdrop-blur-sm hover:bg-white/10 transition-all duration-300 cursor-pointer shadow-sm hover:shadow-md hover:scale-[1.02] hover:border-white/30 active:scale-[0.98]"
@@ -47,7 +54,7 @@ export function PokerGameCard({
       <div className="space-y-1 text-xs sm:text-sm text-muted-foreground">
         <p>{date}</p>
         <p>{formatTime(time)}</p>
-        <p className="text-xs">{players} players</p>
+        <p className="text-xs">{playersText}</p>
       </div>
     </div>
   );

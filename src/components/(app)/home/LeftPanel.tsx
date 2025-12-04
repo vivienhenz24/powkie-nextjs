@@ -127,7 +127,7 @@ export function LeftPanel({ onGameCreated, onClose }: LeftPanelProps) {
 
   return (
     <div
-      className="h-full w-full md:w-80 bg-card/60 backdrop-blur-xl border border-white/20 rounded-lg md:rounded-xl overflow-y-auto shadow-lg transition-all duration-300 hover:shadow-xl hover:border-white/30"
+      className="h-full w-full md:w-80 bg-card/95 md:bg-card/60 backdrop-blur-xl border-0 md:border border-white/20 rounded-none md:rounded-xl overflow-y-auto shadow-lg transition-all duration-300 hover:shadow-xl hover:border-white/30"
       style={{
         boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.37)",
       }}

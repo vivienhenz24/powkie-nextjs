@@ -37,17 +37,17 @@ export function Hero() {
               Welcome to powkie
             </h1>
             <p className="text-lg text-muted-foreground text-pop-up-delay-1">
-              Where poker meets the real world
+              Upcoming games: Currier Dhall 10pm today!
             </p>
           </div>
 
           {/* Desktop header */}
           <div className="hidden lg:block space-y-4">
             <h1 className="text-5xl font-bold text-foreground text-pop-up">
-              Ready to play?
+              Ready to Sign Up?
             </h1>
             <p className="text-xl text-muted-foreground text-pop-up-delay-1">
-             First game in Currier DHall at 10:00PM! Make an account to claim your spot!
+              Upcoming games: Currier Dhall 10pm today!
             </p>
           </div>
 
@@ -57,7 +57,7 @@ export function Hero() {
               size="lg" 
               className="w-full sm:w-auto h-12 text-base font-semibold bg-linear-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white shadow-lg hover:shadow-xl transition-all duration-200"
             >
-              <Link href="/signup">Ready to Play</Link>
+              <Link href="/signup">Ready to Sign Up?</Link>
             </Button>
             <Button 
               asChild
