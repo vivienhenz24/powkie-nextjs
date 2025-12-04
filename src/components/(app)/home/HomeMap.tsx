@@ -2,10 +2,11 @@
 
 import { useCallback, useRef, useState, useEffect } from "react";
 import mapboxgl from "mapbox-gl";
-import { Search, Settings, User, Menu, X } from "lucide-react";
+import { Search, Settings, Menu, X } from "lucide-react";
 import { LeftPanel } from "./LeftPanel";
 import { RightPanel } from "./RightPanel";
 import { MapView } from "./MapView";
+import { GameDetailBox } from "./GameDetailBox";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import {
@@ -29,6 +30,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 export function HomeMap() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
   const supabase = createSupabaseBrowserClient();
   const [commandOpen, setCommandOpen] = useState(false);
   const [leftPanelOpen, setLeftPanelOpen] = useState(false);
@@ -39,9 +41,14 @@ export function HomeMap() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [selectedGame, setSelectedGame] = useState<any | null>(null);
+  const [searchGames, setSearchGames] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
 
   const handleMapReady = useCallback((map: mapboxgl.Map) => {
     mapRef.current = map;
+    setMapReady(true);
   }, []);
 
   // Monitor auth state changes (session expiration, sign out, etc.)
@@ -163,16 +170,247 @@ export function HomeMap() {
     }
   };
 
+  const initials = displayName
+    .split(" ")
+    .filter((part) => part.length > 0)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "PP";
+
+  // Clean up games that are 3+ hours past their start time
+  const cleanupExpiredGames = useCallback(async () => {
+    try {
+      const now = new Date();
+      const { data: allGames, error: fetchError } = await supabase
+        .from("games")
+        .select("*");
+
+      if (fetchError || !allGames) return;
+
+      const expiredGameIds: string[] = [];
+
+      for (const game of allGames) {
+        // Combine game_date and start_time to create the game start datetime
+        const gameStartDate = new Date(`${game.game_date}T${game.start_time}`);
+        
+        // Add 3 hours to the start time
+        const deletionTime = new Date(gameStartDate.getTime() + 3 * 60 * 60 * 1000);
+        
+        // If current time is past the deletion time, mark for deletion
+        if (now >= deletionTime) {
+          expiredGameIds.push(game.id);
+        }
+      }
+
+      // Delete expired games
+      if (expiredGameIds.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("games")
+          .delete()
+          .in("id", expiredGameIds);
+
+        if (deleteError) {
+          console.error("Error deleting expired games:", deleteError);
+        }
+      }
+    } catch (err) {
+      console.error("Error cleaning up expired games:", err);
+    }
+  }, [supabase]);
+
+  // Load games for search and markers
+  const loadGames = useCallback(async () => {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: games, error } = await supabase
+        .from("games")
+        .select("*")
+        .gte("game_date", today)
+        .order("game_date", { ascending: true })
+        .order("start_time", { ascending: true });
+
+      if (error || !games) return null;
+      return games;
+    } catch {
+      return null;
+    }
+  }, [supabase]);
+
+  // Periodic cleanup of expired games (every 5 minutes)
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+
+    const cleanupInterval = setInterval(async () => {
+      await cleanupExpiredGames();
+      // Reload games and markers after cleanup
+      const currentMap = mapRef.current;
+      if (currentMap) {
+        const games = await loadGames();
+        if (games) {
+          // Clear existing markers
+          markersRef.current.forEach((marker) => marker.remove());
+          markersRef.current.clear();
+
+          // Add updated markers
+          games.forEach((game: any) => {
+            if (
+              typeof game.lng !== "number" ||
+              typeof game.lat !== "number"
+            ) {
+              return;
+            }
+
+            const marker = new mapboxgl.Marker({ color: "#22c55e" })
+              .setLngLat([game.lng, game.lat])
+              .addTo(currentMap);
+
+            const el = marker.getElement();
+            el.addEventListener("click", () => {
+              setSelectedGame(game);
+            });
+            el.style.cursor = "pointer";
+
+            markersRef.current.set(game.id, marker);
+          });
+        }
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => {
+      clearInterval(cleanupInterval);
+    };
+  }, [mapReady, cleanupExpiredGames, loadGames]);
+
+  // Load existing games and add markers when map is ready
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+
+    let cancelled = false;
+
+    async function loadGameMarkers() {
+      // Clean up expired games first
+      await cleanupExpiredGames();
+      const games = await loadGames();
+      if (!games || cancelled) return;
+
+      // Clear existing markers
+      markersRef.current.forEach((marker) => marker.remove());
+      markersRef.current.clear();
+
+      const currentMap = mapRef.current;
+      if (!currentMap) {
+        console.warn("Map not ready, cannot add markers");
+        return;
+      }
+
+      games.forEach((game: any) => {
+        if (
+          typeof game.lng !== "number" ||
+          typeof game.lat !== "number"
+        ) {
+          return;
+        }
+
+        const marker = new mapboxgl.Marker({ color: "#22c55e" })
+          .setLngLat([game.lng, game.lat])
+          .addTo(currentMap);
+
+        // Add click handler to show detail box
+        const el = marker.getElement();
+        el.addEventListener("click", () => {
+          setSelectedGame(game);
+        });
+        el.style.cursor = "pointer";
+
+        markersRef.current.set(game.id, marker);
+      });
+    }
+
+    loadGameMarkers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mapReady, supabase, loadGames, cleanupExpiredGames]);
+
+  // Load games for search when command dialog opens
+  useEffect(() => {
+    if (!commandOpen) return;
+
+    async function loadSearchGames() {
+      setSearchLoading(true);
+      const games = await loadGames();
+      if (games) {
+        setSearchGames(games);
+      }
+      setSearchLoading(false);
+    }
+
+    loadSearchGames();
+  }, [commandOpen, loadGames]);
+
+  const handleGameDeleted = () => {
+    // Remove marker from map
+    if (selectedGame) {
+      const marker = markersRef.current.get(selectedGame.id);
+      if (marker) {
+        marker.remove();
+        markersRef.current.delete(selectedGame.id);
+      }
+    }
+    setSelectedGame(null);
+    // Trigger a page refresh to update RightPanel
+    // This ensures all components are in sync
+    window.location.reload();
+  };
+
+  const handleGameUpdated = (updatedGame: any) => {
+    // Update the selected game state
+    setSelectedGame(updatedGame);
+
+    // Update marker position if address changed
+    const marker = markersRef.current.get(updatedGame.id);
+    if (marker && updatedGame.lng && updatedGame.lat) {
+      marker.setLngLat([updatedGame.lng, updatedGame.lat]);
+    }
+
+    // Reload markers to ensure everything is in sync
+    if (mapRef.current) {
+      // Remove old marker
+      if (marker) {
+        marker.remove();
+        markersRef.current.delete(updatedGame.id);
+      }
+
+      // Add updated marker
+      const newMarker = new mapboxgl.Marker({ color: "#22c55e" })
+        .setLngLat([updatedGame.lng, updatedGame.lat])
+        .addTo(mapRef.current);
+
+      // Add click handler
+      const el = newMarker.getElement();
+      el.addEventListener("click", () => {
+        setSelectedGame(updatedGame);
+      });
+      el.style.cursor = "pointer";
+
+      markersRef.current.set(updatedGame.id, newMarker);
+    }
+
+    // Refresh the page to update RightPanel
+    window.location.reload();
+  };
+
   return (
-    <div className="flex flex-col h-screen w-full px-2 sm:px-4 pb-2 sm:pb-4">
+    <div className="flex flex-col h-screen w-full px-2 sm:px-4 pb-2 sm:pb-4 animate-in fade-in duration-500">
       {/* Top Bar */}
-      <header className="h-12 sm:h-14 flex items-center shrink-0 gap-2 sm:gap-3">
+      <header className="h-12 sm:h-14 flex items-center shrink-0 gap-2 sm:gap-3 bg-card/60 backdrop-blur-xl border-b border-white/10 rounded-lg mb-2 px-3 sm:px-4 shadow-lg transition-all duration-300 hover:shadow-xl" style={{ boxShadow: "0 4px 16px 0 rgba(0, 0, 0, 0.2)" }}>
         {/* Left - Logo and Mobile Menu */}
         <div className="flex items-center gap-2 sm:w-80">
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden h-8 w-8"
+            className="md:hidden h-8 w-8 transition-all duration-200 hover:scale-110 active:scale-95"
             onClick={() => setLeftPanelOpen(!leftPanelOpen)}
           >
             {leftPanelOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
@@ -184,8 +422,7 @@ export function HomeMap() {
         <div className="flex-1 min-w-0">
           <Button
             variant="outline"
-            className="w-full justify-start text-muted-foreground text-sm sm:text-base h-9 sm:h-10"
-            style={{ backgroundColor: "var(--app-secondary)" }}
+            className="w-full justify-start text-muted-foreground text-sm sm:text-base h-9 sm:h-10 bg-white/5 backdrop-blur-sm border-white/20 hover:bg-white/10 transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
             onClick={() => setCommandOpen(true)}
           >
             <Search className="mr-2 h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
@@ -202,22 +439,25 @@ export function HomeMap() {
           <Button
             variant="ghost"
             size="icon"
-            className="md:hidden h-8 w-8"
+            className="md:hidden h-8 w-8 transition-all duration-200 hover:scale-110 active:scale-95"
             onClick={() => setRightPanelOpen(!rightPanelOpen)}
           >
             {rightPanelOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </Button>
           <ButtonGroup className="hidden sm:flex">
-            <Button variant="outline" size="icon" className="h-9 w-9 sm:h-10 sm:w-10">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="h-9 w-9 sm:h-10 sm:w-10 transition-all duration-200 hover:scale-110 active:scale-95"
+            >
               <Settings className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
-              size="icon"
-              className="h-9 w-9 sm:h-10 sm:w-10"
+              className="h-9 w-9 sm:h-10 sm:w-10 rounded-full p-0 flex items-center justify-center font-semibold text-xs sm:text-sm transition-all duration-200 hover:scale-110 active:scale-95 hover:ring-2 hover:ring-green-600/50"
               onClick={() => setProfileOpen(true)}
             >
-              <User className="h-4 w-4" />
+              {initials}
             </Button>
           </ButtonGroup>
         </div>
@@ -225,12 +465,53 @@ export function HomeMap() {
 
       {/* Command Dialog */}
       <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
-        <CommandInput placeholder="Type a command or search..." />
+        <CommandInput placeholder="Search games by type, address, or date..." />
         <CommandList>
-          <CommandEmpty>No results found.</CommandEmpty>
-          <CommandGroup heading="Suggestions">
-            <CommandItem>Search houses...</CommandItem>
-            <CommandItem>Go to settings</CommandItem>
+          <CommandEmpty>
+            {searchLoading ? "Loading games..." : "No games found."}
+          </CommandEmpty>
+          {searchGames.length > 0 && (
+            <CommandGroup heading="Available Games">
+              {searchGames.map((game) => {
+                const gameDate = new Date(game.game_date);
+                const formattedDate = gameDate.toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                });
+                const [hours, minutes] = game.start_time.split(":");
+                const hour = parseInt(hours, 10);
+                const ampm = hour >= 12 ? "PM" : "AM";
+                const hour12 = hour % 12 || 12;
+                const formattedTime = `${hour12}:${minutes} ${ampm}`;
+                
+                // Create searchable text for filtering
+                const searchableText = `${game.game_type} ${game.address} ${formattedDate} ${formattedTime} ${game.buy_in}`.toLowerCase();
+
+                return (
+                  <CommandItem
+                    key={game.id}
+                    value={searchableText}
+                    onSelect={() => {
+                      setSelectedGame(game);
+                      setCommandOpen(false);
+                    }}
+                    className="flex items-center gap-3 p-3 cursor-pointer"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm">{game.game_type}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {game.address}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {formattedDate} • {formattedTime} • {game.buy_in}
+                      </div>
+                    </div>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          )}
+          <CommandGroup heading="Quick Actions">
             <CommandItem onSelect={() => setProfileOpen(true)}>
               View profile
             </CommandItem>
@@ -303,36 +584,76 @@ export function HomeMap() {
       {/* Main Content */}
       <div className="flex flex-1 gap-2 sm:gap-3 min-h-0 relative">
         {/* Left Panel - Always visible on desktop, drawer on mobile */}
-        <div className={`hidden md:block ${leftPanelOpen ? "" : ""}`}>
-          <LeftPanel />
+        <div className={`hidden md:block animate-in slide-in-from-left-4 fade-in duration-500 ${leftPanelOpen ? "" : ""}`}>
+          <LeftPanel
+            onGameCreated={(game) => {
+              if (!mapRef.current) return;
+              const marker = new mapboxgl.Marker({ color: "#22c55e" })
+                .setLngLat([game.lng, game.lat])
+                .addTo(mapRef.current);
+
+              // Add click handler
+              const el = marker.getElement();
+              el.addEventListener("click", () => {
+                setSelectedGame(game);
+              });
+              el.style.cursor = "pointer";
+
+              markersRef.current.set(game.id, marker);
+            }}
+          />
         </div>
         {/* Mobile Left Panel Drawer */}
         {leftPanelOpen && (
-          <div className="md:hidden absolute left-0 top-0 bottom-0 z-50 w-80 shadow-lg">
-            <LeftPanel />
+          <div className="md:hidden absolute left-0 top-0 bottom-0 z-50 w-80 shadow-2xl animate-in slide-in-from-left-4 fade-in duration-300">
+            <LeftPanel
+              onGameCreated={(game) => {
+                if (!mapRef.current) return;
+                const marker = new mapboxgl.Marker({ color: "#22c55e" })
+                  .setLngLat([game.lng, game.lat])
+                  .addTo(mapRef.current);
+
+                // Add click handler
+                const el = marker.getElement();
+                el.addEventListener("click", () => {
+                  setSelectedGame(game);
+                });
+                el.style.cursor = "pointer";
+
+                markersRef.current.set(game.id, marker);
+              }}
+            />
           </div>
         )}
 
         {/* Map - Full width on mobile */}
-        <div className="flex-1 rounded-lg sm:rounded-xl overflow-hidden border border-border min-w-0">
+        <div className="flex-1 rounded-lg sm:rounded-xl overflow-hidden border border-white/20 min-w-0 relative shadow-lg animate-in fade-in zoom-in-95 duration-700" style={{ boxShadow: "0 4px 16px 0 rgba(0, 0, 0, 0.2)" }}>
           <MapView onMapReady={handleMapReady} />
+          {selectedGame && (
+            <GameDetailBox
+              game={selectedGame}
+              onClose={() => setSelectedGame(null)}
+              onGameDeleted={handleGameDeleted}
+              onGameUpdated={handleGameUpdated}
+            />
+          )}
         </div>
 
         {/* Right Panel - Always visible on desktop, drawer on mobile */}
-        <div className="hidden md:block">
-          <RightPanel />
+        <div className="hidden md:block animate-in slide-in-from-right-4 fade-in duration-500">
+          <RightPanel onGameSelect={setSelectedGame} />
         </div>
         {/* Mobile Right Panel Drawer */}
         {rightPanelOpen && (
-          <div className="md:hidden absolute right-0 top-0 bottom-0 z-50 w-80 shadow-lg">
-            <RightPanel />
+          <div className="md:hidden absolute right-0 top-0 bottom-0 z-50 w-80 shadow-2xl animate-in slide-in-from-right-4 fade-in duration-300">
+            <RightPanel onGameSelect={setSelectedGame} />
           </div>
         )}
 
         {/* Mobile overlay when panel is open */}
         {(leftPanelOpen || rightPanelOpen) && (
           <div
-            className="md:hidden absolute inset-0 bg-black/20 z-40"
+            className="md:hidden absolute inset-0 bg-black/30 backdrop-blur-sm z-40"
             onClick={() => {
               setLeftPanelOpen(false);
               setRightPanelOpen(false);

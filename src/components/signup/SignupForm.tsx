@@ -11,7 +11,8 @@ import { PokerVisuals } from "@/components/auth/PokerVisuals";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
 const signupSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Please enter a valid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
@@ -22,7 +23,8 @@ export function SignupForm() {
   const router = useRouter();
   const supabase = createSupabaseBrowserClient();
   const [formData, setFormData] = useState<SignupFormData>({
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
     password: "",
   });
@@ -56,7 +58,9 @@ export function SignupForm() {
         password: result.data.password,
         options: {
           data: {
-            display_name: result.data.name,
+            display_name: `${result.data.firstName} ${result.data.lastName}`,
+            first_name: result.data.firstName,
+            last_name: result.data.lastName,
           },
         },
       });
@@ -85,7 +89,7 @@ export function SignupForm() {
         // But we also explicitly create/update it here to ensure display_name is set
         await supabase.from("profiles").upsert({
           user_id: authData.user.id,
-          display_name: result.data.name,
+          display_name: `${result.data.firstName} ${result.data.lastName}`,
           bio: "",
         });
 
@@ -145,18 +149,32 @@ export function SignupForm() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <Field data-invalid={!!errors.name}>
-              <FieldLabel htmlFor="name">Name</FieldLabel>
+            <Field data-invalid={!!errors.firstName}>
+              <FieldLabel htmlFor="firstName">First name</FieldLabel>
               <Input
-                id="name"
+                id="firstName"
                 type="text"
-                placeholder="Your name"
-                value={formData.name}
-                onChange={handleChange("name")}
-                aria-invalid={!!errors.name}
+                placeholder="First name"
+                value={formData.firstName}
+                onChange={handleChange("firstName")}
+                aria-invalid={!!errors.firstName}
                 className="h-12"
               />
-              {errors.name && <FieldError>{errors.name}</FieldError>}
+              {errors.firstName && <FieldError>{errors.firstName}</FieldError>}
+            </Field>
+
+            <Field data-invalid={!!errors.lastName}>
+              <FieldLabel htmlFor="lastName">Last name</FieldLabel>
+              <Input
+                id="lastName"
+                type="text"
+                placeholder="Last name"
+                value={formData.lastName}
+                onChange={handleChange("lastName")}
+                aria-invalid={!!errors.lastName}
+                className="h-12"
+              />
+              {errors.lastName && <FieldError>{errors.lastName}</FieldError>}
             </Field>
 
             <Field data-invalid={!!errors.email}>
