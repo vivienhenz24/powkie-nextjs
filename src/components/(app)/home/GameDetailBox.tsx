@@ -27,6 +27,7 @@ interface GameDetailBoxProps {
 interface Player {
   id: string;
   display_name: string;
+  email?: string;
   isHost: boolean;
 }
 
@@ -69,7 +70,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
         // Load host profile
         const { data: hostProfile } = await supabase
           .from("profiles")
-          .select("display_name")
+          .select("display_name, email")
           .eq("user_id", game.host_id)
           .single();
 
@@ -78,6 +79,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
           playersList.push({
             id: game.host_id,
             display_name: hostProfile.display_name || "Host",
+            email: hostProfile.email,
             isHost: true,
           });
         }
@@ -92,7 +94,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
           const playerIds = gamePlayers.map((gp) => gp.player_id);
           const { data: playerProfiles } = await supabase
             .from("profiles")
-            .select("user_id, display_name")
+            .select("user_id, display_name, email")
             .in("user_id", playerIds);
 
           if (playerProfiles) {
@@ -100,6 +102,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
               playersList.push({
                 id: profile.user_id,
                 display_name: profile.display_name || "Player",
+                email: profile.email,
                 isHost: false,
               });
             });
@@ -469,6 +472,11 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
                           </span>
                         )}
                       </p>
+                      {player.email && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {player.email}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}

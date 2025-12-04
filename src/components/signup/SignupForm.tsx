@@ -5,28 +5,55 @@ import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
 import Link from "next/link";
 import { PokerVisuals } from "@/components/auth/PokerVisuals";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 
+const HARVARD_HOUSES = [
+  "Adams House",
+  "Cabot House",
+  "Currier House",
+  "Dunster House",
+  "Eliot House",
+  "Freshman",
+  "Kirkland House",
+  "Leverett House",
+  "Lowell House",
+  "Mather House",
+  "Pforzheimer House",
+  "Quincy House",
+  "Winthrop House",
+] as const;
+
 const signupSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Please enter a valid email address"),
+  email: z
+    .string()
+    .email("Please enter a valid email address")
+    .refine((email) => email.endsWith("@college.harvard.edu"), {
+      message: "Email must be a Harvard email address (@college.harvard.edu)",
+    }),
   password: z.string().min(8, "Password must be at least 8 characters"),
+  house: z.enum(HARVARD_HOUSES, {
+    errorMap: () => ({ message: "Please select your Harvard house" }),
+  }),
 });
 
 type SignupFormData = z.infer<typeof signupSchema>;
+type SignupFormState = Omit<SignupFormData, "house"> & { house: SignupFormData["house"] | "" };
 
 export function SignupForm() {
   const router = useRouter();
   const supabase = createSupabaseBrowserClient();
-  const [formData, setFormData] = useState<SignupFormData>({
+  const [formData, setFormData] = useState<SignupFormState>({
     firstName: "",
     lastName: "",
     email: "",
     password: "",
+    house: "",
   });
   const [errors, setErrors] = useState<Partial<Record<keyof SignupFormData, string>>>({});
   const [loading, setLoading] = useState(false);
@@ -35,7 +62,8 @@ export function SignupForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const result = signupSchema.safeParse(formData);
+    // Type assertion is safe here - Zod will validate the actual value
+    const result = signupSchema.safeParse(formData as unknown as SignupFormData);
     
     if (!result.success) {
       const fieldErrors: Partial<Record<keyof SignupFormData, string>> = {};
@@ -61,6 +89,7 @@ export function SignupForm() {
             display_name: `${result.data.firstName} ${result.data.lastName}`,
             first_name: result.data.firstName,
             last_name: result.data.lastName,
+            house: result.data.house,
           },
         },
       });
@@ -103,10 +132,17 @@ export function SignupForm() {
     }
   };
 
-  const handleChange = (field: keyof SignupFormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (field: keyof SignupFormState) => (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, [field]: e.target.value }));
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: undefined }));
+    if (errors[field as keyof SignupFormData]) {
+      setErrors((prev) => ({ ...prev, [field as keyof SignupFormData]: undefined }));
+    }
+  };
+
+  const handleSelectChange = (field: keyof SignupFormState) => (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setFormData((prev) => ({ ...prev, [field]: e.target.value }));
+    if (errors[field as keyof SignupFormData]) {
+      setErrors((prev) => ({ ...prev, [field as keyof SignupFormData]: undefined }));
     }
   };
 
@@ -182,13 +218,34 @@ export function SignupForm() {
               <Input
                 id="email"
                 type="email"
-                placeholder="you@example.com"
+                placeholder="you@college.harvard.edu"
                 value={formData.email}
                 onChange={handleChange("email")}
                 aria-invalid={!!errors.email}
                 className="h-12"
               />
               {errors.email && <FieldError>{errors.email}</FieldError>}
+            </Field>
+
+            <Field data-invalid={!!errors.house}>
+              <FieldLabel htmlFor="house">Harvard House</FieldLabel>
+              <Select
+                id="house"
+                value={formData.house || ""}
+                onChange={handleSelectChange("house")}
+                aria-invalid={!!errors.house}
+                className="h-12"
+              >
+                <option value="" disabled>
+                  Select your house
+                </option>
+                {HARVARD_HOUSES.map((house) => (
+                  <option key={house} value={house}>
+                    {house}
+                  </option>
+                ))}
+              </Select>
+              {errors.house && <FieldError>{errors.house}</FieldError>}
             </Field>
 
             <Field data-invalid={!!errors.password}>

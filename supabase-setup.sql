@@ -2,6 +2,7 @@
 create table public.profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   display_name text,
+  email text,
   bio text,
   avatar_url text,
   created_at timestamptz default now(),
@@ -16,6 +17,12 @@ create policy "Users can view their own profile"
 on public.profiles
 for select
 using ( auth.uid() = user_id );
+
+-- Policy: Authenticated users can view profiles (for displaying player info in games)
+create policy "Authenticated users can view profiles"
+on public.profiles
+for select
+using ( auth.role() = 'authenticated' );
 
 -- Policy: Users can insert their own profile
 create policy "Users can insert their own profile"
@@ -33,8 +40,8 @@ using ( auth.uid() = user_id );
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (user_id, display_name)
-  values (new.id, coalesce(new.raw_user_meta_data->>'display_name', 'Player'));
+  insert into public.profiles (user_id, display_name, email)
+  values (new.id, coalesce(new.raw_user_meta_data->>'display_name', 'Player'), new.email);
   return new;
 end;
 $$ language plpgsql security definer;
