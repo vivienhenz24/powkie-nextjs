@@ -37,9 +37,7 @@ const signupSchema = z.object({
       message: "Email must be a Harvard email address (@college.harvard.edu)",
     }),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  house: z.enum(HARVARD_HOUSES, {
-    errorMap: () => ({ message: "Please select your Harvard house" }),
-  }),
+  house: z.enum(HARVARD_HOUSES, "Please select your Harvard house"),
 });
 
 type SignupFormData = z.infer<typeof signupSchema>;
