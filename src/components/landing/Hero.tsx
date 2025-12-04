@@ -16,7 +16,7 @@ export function Hero() {
               Welcome to powkie
             </h2>
             <p className="text-2xl text-green-100 drop-shadow-md text-pop-up-delay-1">
-              Where poker meets the real world
+              Casual in-person poker at Harvard, everyday!
             </p>
             <div className="flex items-center justify-center gap-3 text-2xl text-white/80 mt-4 text-pop-up-delay-2">
               <span>♠</span>

@@ -28,6 +28,7 @@ interface GameDetailBoxProps {
 interface Player {
   id: string;
   display_name: string;
+  email?: string;
   isHost: boolean;
 }
 
@@ -615,6 +616,11 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
                           </span>
                         )}
                       </p>
+                      {player.email && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {player.email}
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}
