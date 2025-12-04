@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { X, Trash2, MapPin, Calendar, Clock, DollarSign, Users, Edit2, Save } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { X, Trash2, MapPin, Calendar, Clock, DollarSign, Users, Edit2, Save, UserPlus, UserMinus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
@@ -37,6 +37,8 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
   const [deleting, setDeleting] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(false);
+  const [isJoined, setIsJoined] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -49,6 +51,88 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
   const [startTime, setStartTime] = useState(game.start_time);
   const [buyIn, setBuyIn] = useState(game.buy_in);
   const [maxPlayers, setMaxPlayers] = useState<string>(game.max_players?.toString() || "");
+
+  // Reload players list from database
+  const reloadPlayers = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      const playersList: Player[] = [];
+
+      // Always load and add host first
+      try {
+        const { data: hostProfile, error: hostError } = await supabase
+          .from("profiles")
+          .select("display_name")
+          .eq("user_id", game.host_id)
+          .single();
+
+        // Always add host, use fallback if profile not found
+        playersList.push({
+          id: game.host_id,
+          display_name: hostProfile?.display_name || "Host",
+          isHost: true,
+        });
+
+        if (hostError && hostError.code !== "PGRST116") {
+          // PGRST116 is "not found" which is okay, we use fallback
+          console.warn("Error loading host profile:", hostError);
+        }
+      } catch (err) {
+        // Even if profile lookup fails completely, add host with fallback
+        console.error("Error loading host profile:", err);
+        playersList.push({
+          id: game.host_id,
+          display_name: "Host",
+          isHost: true,
+        });
+      }
+
+      // Load other players (excluding host if they somehow joined their own game)
+      const { data: gamePlayers, error: playersError } = await supabase
+        .from("game_players")
+        .select("player_id")
+        .eq("game_id", game.id);
+
+      // Check if current user has joined
+      if (user && gamePlayers) {
+        const userJoined = gamePlayers.some((gp) => gp.player_id === user.id);
+        setIsJoined(userJoined || user.id === game.host_id); // Host is always considered "joined"
+      }
+
+      // Add other players who joined
+      if (!playersError && gamePlayers && gamePlayers.length > 0) {
+        // Filter out host if they somehow joined their own game
+        const nonHostPlayerIds = gamePlayers
+          .map((gp) => gp.player_id)
+          .filter((id) => id !== game.host_id);
+        
+        if (nonHostPlayerIds.length > 0) {
+          const { data: playerProfiles, error: profilesError } = await supabase
+            .from("profiles")
+            .select("user_id, display_name")
+            .in("user_id", nonHostPlayerIds);
+
+          if (!profilesError && playerProfiles) {
+            playerProfiles.forEach((profile) => {
+              playersList.push({
+                id: profile.user_id,
+                display_name: profile.display_name || "Player",
+                isHost: false,
+              });
+            });
+          } else if (profilesError) {
+            console.warn("Error loading player profiles:", profilesError);
+          }
+        }
+      }
+
+      // Always set players list, even if empty (should at least have host)
+      setPlayers(playersList);
+    } catch (err) {
+      console.error("Error reloading players:", err);
+    }
+  }, [game.id, game.host_id, supabase]);
 
   const handleClose = () => {
     setIsClosing(true);
@@ -66,56 +150,29 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
           setIsHost(user.id === game.host_id);
         }
 
-        // Load host profile
-        const { data: hostProfile } = await supabase
-          .from("profiles")
-          .select("display_name")
-          .eq("user_id", game.host_id)
-          .single();
-
-        const playersList: Player[] = [];
-        if (hostProfile) {
-          playersList.push({
-            id: game.host_id,
-            display_name: hostProfile.display_name || "Host",
-            isHost: true,
-          });
-        }
-
-        // Load other players
-        const { data: gamePlayers, error: playersError } = await supabase
-          .from("game_players")
-          .select("player_id")
-          .eq("game_id", game.id);
-
-        if (!playersError && gamePlayers && gamePlayers.length > 0) {
-          const playerIds = gamePlayers.map((gp) => gp.player_id);
-          const { data: playerProfiles } = await supabase
-            .from("profiles")
-            .select("user_id, display_name")
-            .in("user_id", playerIds);
-
-          if (playerProfiles) {
-            playerProfiles.forEach((profile) => {
-              playersList.push({
-                id: profile.user_id,
-                display_name: profile.display_name || "Player",
-                isHost: false,
-              });
-            });
-          }
-        }
-
-        setPlayers(playersList);
+        await reloadPlayers();
       } catch (err) {
         console.error("Error loading game details:", err);
+        // Set at least the host as fallback
+        setPlayers([{
+          id: game.host_id,
+          display_name: "Host",
+          isHost: true,
+        }]);
       } finally {
         setLoading(false);
       }
     }
 
     loadData();
-  }, [game.id, game.host_id, supabase]);
+
+    // Auto-refresh players list every 10 seconds
+    const refreshInterval = setInterval(() => {
+      reloadPlayers();
+    }, 10000);
+
+    return () => clearInterval(refreshInterval);
+  }, [game.id, game.host_id, reloadPlayers]);
 
   const handleDelete = async () => {
     if (!isHost || !currentUserId) return;
@@ -242,6 +299,60 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
     setIsEditing(true);
   };
 
+  const handleJoin = async () => {
+    if (!currentUserId || isHost || isJoined) return;
+
+    setIsJoining(true);
+    try {
+      const { error: joinError } = await supabase
+        .from("game_players")
+        .insert({
+          game_id: game.id,
+          player_id: currentUserId,
+        });
+
+      if (joinError) {
+        alert("Failed to join game: " + joinError.message);
+        setIsJoining(false);
+        return;
+      }
+
+      // Reload entire players list from database
+      await reloadPlayers();
+      setIsJoined(true);
+    } catch (err) {
+      alert("An unexpected error occurred while joining the game.");
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
+  const handleLeave = async () => {
+    if (!currentUserId || isHost || !isJoined) return;
+
+    setIsJoining(true);
+    try {
+      const { error: leaveError } = await supabase
+        .from("game_players")
+        .delete()
+        .match({ game_id: game.id, player_id: currentUserId });
+
+      if (leaveError) {
+        alert("Failed to leave game: " + leaveError.message);
+        setIsJoining(false);
+        return;
+      }
+
+      // Reload entire players list from database
+      await reloadPlayers();
+      setIsJoined(false);
+    } catch (err) {
+      alert("An unexpected error occurred while leaving the game.");
+    } finally {
+      setIsJoining(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
@@ -271,7 +382,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
 
       {/* Detail Box */}
       <div
-        className={`relative w-full max-w-2xl bg-card/80 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl overflow-hidden transition-all duration-500 ${isClosing ? 'animate-out fade-out zoom-out-95' : 'animate-in fade-in zoom-in-95'}`}
+        className={`relative w-full max-w-2xl max-h-[90vh] bg-card/80 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl overflow-hidden transition-all duration-500 flex flex-col ${isClosing ? 'animate-out fade-out zoom-out-95' : 'animate-in fade-in zoom-in-95'}`}
         style={{
           boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.37)",
         }}
@@ -299,7 +410,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
         </div>
 
         {/* Content */}
-        <div className="p-4 sm:p-6 space-y-6">
+        <div className="flex-1 p-4 sm:p-6 space-y-6 overflow-y-auto">
           {editError && (
             <div className="text-xs sm:text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-md p-2">
               {editError}
@@ -436,10 +547,22 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
 
           {/* Players List */}
           <div>
-            <h3 className="text-base sm:text-lg font-semibold mb-3 flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Players ({loading ? "..." : players.length})
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Players ({loading ? "..." : players.length})
+              </h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={reloadPlayers}
+                disabled={loading}
+                title="Refresh players list"
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
             {loading ? (
               <div className="text-sm text-muted-foreground">Loading players...</div>
             ) : players.length === 0 ? (
@@ -478,13 +601,13 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
         </div>
 
         {/* Footer */}
-        <div className="border-t border-white/10 bg-white/5 backdrop-blur-sm p-4 sm:p-6 flex justify-between gap-3">
-          <div className="flex gap-3">
+        <div className="border-t border-white/10 bg-white/5 backdrop-blur-sm p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
             {isHost && !isEditing && (
               <Button
                 variant="outline"
                 onClick={handleStartEdit}
-                className="flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+                className="flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95 w-full sm:w-auto justify-center"
               >
                 <Edit2 className="h-4 w-4" />
                 Edit Game
@@ -495,28 +618,52 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
                 variant="destructive"
                 onClick={handleDelete}
                 disabled={deleting || saving}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 w-full sm:w-auto justify-center"
               >
                 <Trash2 className="h-4 w-4" />
                 {deleting ? "Deleting..." : "Delete Game"}
               </Button>
             )}
+            {!isHost && !isEditing && (
+              <>
+                {!isJoined ? (
+                  <Button
+                    onClick={handleJoin}
+                    disabled={isJoining}
+                    className="flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95 w-full sm:w-auto justify-center"
+                  >
+                    <UserPlus className="h-4 w-4" />
+                    {isJoining ? "Joining..." : "Join Game"}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={handleLeave}
+                    disabled={isJoining}
+                    className="flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95 w-full sm:w-auto justify-center"
+                  >
+                    <UserMinus className="h-4 w-4" />
+                    {isJoining ? "Leaving..." : "Leave Game"}
+                  </Button>
+                )}
+              </>
+            )}
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-2">
             {isEditing ? (
               <>
                 <Button
                   variant="outline"
                   onClick={handleCancelEdit}
                   disabled={saving}
-                  className="transition-all duration-200 hover:scale-105 active:scale-95"
+                  className="transition-all duration-200 hover:scale-105 active:scale-95 w-full sm:w-auto"
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleSaveEdit}
                   disabled={saving}
-                  className="flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95"
+                  className="flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95 w-full sm:w-auto justify-center"
                 >
                   <Save className="h-4 w-4" />
                   {saving ? "Saving..." : "Save Changes"}
@@ -526,7 +673,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
               <Button 
                 variant="outline" 
                 onClick={handleClose}
-                className="transition-all duration-200 hover:scale-105 active:scale-95"
+                className="transition-all duration-200 hover:scale-105 active:scale-95 w-full sm:w-auto"
               >
                 Close
               </Button>

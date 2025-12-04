@@ -16,9 +16,10 @@ interface LeftPanelProps {
     start_time: string;
     buy_in: string;
   }) => void;
+  onClose?: () => void;
 }
 
-export function LeftPanel({ onGameCreated }: LeftPanelProps) {
+export function LeftPanel({ onGameCreated, onClose }: LeftPanelProps) {
   const supabase = createSupabaseBrowserClient();
   const [gameType, setGameType] = useState("");
   const [address, setAddress] = useState("");
@@ -110,6 +111,11 @@ export function LeftPanel({ onGameCreated }: LeftPanelProps) {
       if (insertData && onGameCreated) {
         onGameCreated(insertData);
       }
+
+      // After successfully hosting a game, optionally close the panel (e.g. on mobile)
+      if (onClose) {
+        onClose();
+      }
     } catch {
       setError("An unexpected error occurred while hosting the game.");
     } finally {
@@ -173,7 +179,7 @@ export function LeftPanel({ onGameCreated }: LeftPanelProps) {
             />
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <div className="flex-1 space-y-1">
               <label htmlFor="gameDate" className="font-medium">
                 Date

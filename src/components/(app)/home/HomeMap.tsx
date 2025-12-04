@@ -298,8 +298,13 @@ export function HomeMap() {
       markersRef.current.clear();
 
       const currentMap = mapRef.current;
-      if (!currentMap) {
-        console.warn("Map not ready, cannot add markers");
+      // Extra safety: make sure map is still alive and has a canvas
+      if (
+        !currentMap ||
+        typeof (currentMap as any).getCanvas !== "function" ||
+        !(currentMap as any).getCanvas()
+      ) {
+        console.warn("Map not ready or destroyed, cannot add markers");
         return;
       }
 
@@ -311,9 +316,15 @@ export function HomeMap() {
           return;
         }
 
-        const marker = new mapboxgl.Marker({ color: "#22c55e" })
-          .setLngLat([game.lng, game.lat])
-          .addTo(currentMap);
+        let marker: mapboxgl.Marker | null = null;
+        try {
+          marker = new mapboxgl.Marker({ color: "#22c55e" })
+            .setLngLat([game.lng, game.lat])
+            .addTo(currentMap);
+        } catch (err) {
+          console.error("Failed to add marker to map:", err);
+          return;
+        }
 
         // Add click handler to show detail box
         const el = marker.getElement();
@@ -404,14 +415,20 @@ export function HomeMap() {
   return (
     <div className="flex flex-col h-screen w-full px-2 sm:px-4 pb-2 sm:pb-4 animate-in fade-in duration-500">
       {/* Top Bar */}
-      <header className="h-12 sm:h-14 flex items-center shrink-0 gap-2 sm:gap-3 bg-card/60 backdrop-blur-xl border-b border-white/10 rounded-lg mb-2 px-3 sm:px-4 shadow-lg transition-all duration-300 hover:shadow-xl" style={{ boxShadow: "0 4px 16px 0 rgba(0, 0, 0, 0.2)" }}>
+      <header className="sticky top-0 z-30 h-12 sm:h-14 flex items-center shrink-0 gap-2 sm:gap-3 bg-card/60 backdrop-blur-xl border-b border-white/10 rounded-lg mb-2 px-3 sm:px-4 shadow-lg transition-all duration-300 hover:shadow-xl" style={{ boxShadow: "0 4px 16px 0 rgba(0, 0, 0, 0.2)" }}>
         {/* Left - Logo and Mobile Menu */}
         <div className="flex items-center gap-2 sm:w-80">
           <Button
             variant="ghost"
             size="icon"
             className="md:hidden h-8 w-8 transition-all duration-200 hover:scale-110 active:scale-95"
-            onClick={() => setLeftPanelOpen(!leftPanelOpen)}
+            onClick={() => {
+              setLeftPanelOpen((open) => {
+                const next = !open;
+                if (next) setRightPanelOpen(false);
+                return next;
+              });
+            }}
           >
             {leftPanelOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </Button>
@@ -440,7 +457,13 @@ export function HomeMap() {
             variant="ghost"
             size="icon"
             className="md:hidden h-8 w-8 transition-all duration-200 hover:scale-110 active:scale-95"
-            onClick={() => setRightPanelOpen(!rightPanelOpen)}
+            onClick={() => {
+              setRightPanelOpen((open) => {
+                const next = !open;
+                if (next) setLeftPanelOpen(false);
+                return next;
+              });
+            }}
           >
             {rightPanelOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
           </Button>
@@ -622,6 +645,7 @@ export function HomeMap() {
 
                 markersRef.current.set(game.id, marker);
               }}
+              onClose={() => setLeftPanelOpen(false)}
             />
           </div>
         )}
