@@ -270,7 +270,7 @@ export function RightPanel({ onGameSelect }: RightPanelProps) {
 
   return (
     <div
-      className="h-full w-full md:w-80 bg-card/60 backdrop-blur-xl border border-white/20 rounded-lg md:rounded-xl overflow-y-auto md:overflow-y-auto shadow-lg transition-all duration-300 hover:shadow-xl hover:border-white/30 flex flex-col"
+      className="h-full w-full md:w-80 bg-card backdrop-blur-xl border border-white/20 rounded-lg md:rounded-xl overflow-y-auto md:overflow-y-auto shadow-lg transition-all duration-300 hover:shadow-xl hover:border-white/30 flex flex-col"
       style={{
         boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.37)",
       }}

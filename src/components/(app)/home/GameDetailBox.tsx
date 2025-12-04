@@ -397,7 +397,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
   };
 
   return (
-    <div className={`absolute inset-0 z-50 flex items-center justify-center p-4 sm:p-8 transition-all duration-300 ${isClosing ? 'animate-out fade-out' : 'animate-in fade-in'}`}>
+    <div className={`absolute inset-0 z-[60] flex items-center justify-center p-4 sm:p-8 transition-all duration-300 ${isClosing ? 'animate-out fade-out' : 'animate-in fade-in'}`}>
       {/* Backdrop */}
       <div
         className={`absolute inset-0 bg-black/40 backdrop-blur-md transition-all duration-300 ${isClosing ? 'animate-out fade-out' : 'animate-in fade-in'}`}
@@ -406,7 +406,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
 
       {/* Detail Box */}
       <div
-        className={`relative w-full max-w-2xl max-h-[90vh] bg-card/80 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl overflow-hidden transition-all duration-500 flex flex-col ${isClosing ? 'animate-out fade-out zoom-out-95' : 'animate-in fade-in zoom-in-95'}`}
+        className={`relative w-full max-w-2xl h-[90vh] md:max-h-[90vh] bg-card/80 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl overflow-hidden transition-all duration-500 flex flex-col ${isClosing ? 'animate-out fade-out zoom-out-95' : 'animate-in fade-in zoom-in-95'}`}
         style={{
           boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.37)",
         }}

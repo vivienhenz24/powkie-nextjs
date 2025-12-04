@@ -723,14 +723,16 @@ export function HomeMap() {
           )}
         </div>
 
-        {/* Right Panel - Always visible on desktop and mobile */}
+        {/* Right Panel - Always visible on desktop */}
         <div className="hidden md:block animate-in slide-in-from-right-4 fade-in duration-500">
           <RightPanel onGameSelect={setSelectedGame} />
         </div>
-        {/* Mobile Right Panel - Always visible bottom sheet */}
-        <div className="md:hidden absolute left-0 right-0 bottom-0 z-50 h-[33vh] shadow-2xl rounded-t-2xl overflow-hidden">
-          <RightPanel onGameSelect={setSelectedGame} />
-        </div>
+        {/* Mobile Right Panel - Hide when game details are open */}
+        {!selectedGame && (
+          <div className="md:hidden absolute left-0 right-0 bottom-0 z-40 h-[33vh] shadow-2xl rounded-t-2xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-300">
+            <RightPanel onGameSelect={setSelectedGame} />
+          </div>
+        )}
 
       </div>
     </div>
