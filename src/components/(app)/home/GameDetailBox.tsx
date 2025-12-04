@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, Trash2, MapPin, Calendar, Clock, Users, Edit2, Save, UserPlus, UserMinus, RefreshCw, Mail, Phone } from "lucide-react";
+import { X, Trash2, MapPin, Calendar, Clock, Users, Edit2, Save, UserPlus, UserMinus, RefreshCw, Mail, Phone, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
@@ -42,6 +42,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
   const [isJoined, setIsJoined] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [kickingPlayerId, setKickingPlayerId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
@@ -375,6 +376,35 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
     }
   };
 
+  const handleKick = async (playerId: string, playerName: string) => {
+    if (!isHost || !currentUserId || playerId === game.host_id) return;
+
+    if (!confirm(`Are you sure you want to kick ${playerName} from this game?`)) {
+      return;
+    }
+
+    setKickingPlayerId(playerId);
+    try {
+      const { error: kickError } = await supabase
+        .from("game_players")
+        .delete()
+        .match({ game_id: game.id, player_id: playerId });
+
+      if (kickError) {
+        alert("Failed to kick player: " + kickError.message);
+        setKickingPlayerId(null);
+        return;
+      }
+
+      // Reload entire players list from database
+      await reloadPlayers();
+    } catch (err) {
+      alert("An unexpected error occurred while kicking the player.");
+    } finally {
+      setKickingPlayerId(null);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     // Parse date string as local date to avoid timezone issues
     const [year, month, day] = dateString.split('-').map(Number);
@@ -630,6 +660,22 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
                         </p>
                       )}
                     </div>
+                    {isHost && !player.isHost && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-600/20 transition-all duration-200"
+                        onClick={() => handleKick(player.id, player.display_name)}
+                        disabled={kickingPlayerId === player.id}
+                        title={`Kick ${player.display_name}`}
+                      >
+                        {kickingPlayerId === player.id ? (
+                          <RefreshCw className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <UserX className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
                   </div>
                 ))}
               </div>
