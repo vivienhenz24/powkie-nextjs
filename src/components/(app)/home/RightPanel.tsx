@@ -24,9 +24,10 @@ interface GameWithMeta {
 
 interface RightPanelProps {
   onGameSelect?: (game: GameWithMeta) => void;
+  isGuest?: boolean;
 }
 
-export function RightPanel({ onGameSelect }: RightPanelProps) {
+export function RightPanel({ onGameSelect, isGuest = false }: RightPanelProps) {
   const supabase = createSupabaseBrowserClient();
   const [games, setGames] = useState<GameWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,13 +90,12 @@ export function RightPanel({ onGameSelect }: RightPanelProps) {
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (userError || !user) {
-        setError("You must be logged in to view games.");
-        setLoading(false);
-        return;
+      // Allow guest mode - don't require authentication to view games
+      if (user && !userError) {
+        setUserId(user.id);
+      } else {
+        setUserId(null);
       }
-
-      setUserId(user.id);
 
       // Clean up expired games before loading
       await cleanupExpiredGames();
@@ -145,7 +145,7 @@ export function RightPanel({ onGameSelect }: RightPanelProps) {
           isJoined: false,
         };
         current.playersCount += 1;
-        if (row.player_id === user.id) {
+        if (user && row.player_id === user.id) {
           current.isJoined = true;
         }
         metaByGame.set(row.game_id, current);
@@ -170,8 +170,8 @@ export function RightPanel({ onGameSelect }: RightPanelProps) {
             lng: g.lng,
             lat: g.lat,
             playersCount: meta.playersCount + 1, // +1 for the host
-            isJoined: meta.isJoined || g.host_id === user.id,
-            isHost: g.host_id === user.id,
+            isJoined: user ? (meta.isJoined || g.host_id === user.id) : false,
+            isHost: user ? g.host_id === user.id : false,
           };
         });
 
@@ -322,34 +322,36 @@ export function RightPanel({ onGameSelect }: RightPanelProps) {
                 maxPlayers={game.max_players}
                 onClick={() => onGameSelect?.(game)}
               />
-              <div className="flex justify-between items-center text-xs sm:text-sm">
-                <span className="text-muted-foreground">
-                  {game.isHost
-                    ? "You are hosting this game"
-                    : game.isJoined
-                    ? "You are playing in this game"
-                    : "Open seat available"}
-                </span>
-                {!game.isHost && (
-                  <Button
-                    size="sm"
-                    variant={game.isJoined ? "outline" : "default"}
-                    className="h-7 px-3 transition-all duration-200 hover:scale-105 active:scale-95"
-                    disabled={joiningId === game.id}
-                    onClick={() =>
-                      game.isJoined ? handleLeave(game.id) : handleJoin(game.id)
-                    }
-                  >
-                    {joiningId === game.id
-                      ? game.isJoined
-                        ? "Leaving..."
-                        : "Joining..."
+              {!isGuest && (
+                <div className="flex justify-between items-center text-xs sm:text-sm">
+                  <span className="text-muted-foreground">
+                    {game.isHost
+                      ? "You are hosting this game"
                       : game.isJoined
-                      ? "Leave"
-                      : "Join"}
-                  </Button>
-                )}
-              </div>
+                      ? "You are playing in this game"
+                      : "Open seat available"}
+                  </span>
+                  {!game.isHost && (
+                    <Button
+                      size="sm"
+                      variant={game.isJoined ? "outline" : "default"}
+                      className="h-7 px-3 transition-all duration-200 hover:scale-105 active:scale-95"
+                      disabled={joiningId === game.id}
+                      onClick={() =>
+                        game.isJoined ? handleLeave(game.id) : handleJoin(game.id)
+                      }
+                    >
+                      {joiningId === game.id
+                        ? game.isJoined
+                          ? "Leaving..."
+                          : "Joining..."
+                        : game.isJoined
+                        ? "Leave"
+                        : "Join"}
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState, useEffect } from "react";
 import mapboxgl from "mapbox-gl";
-import { Search, Settings, Menu, X } from "lucide-react";
+import { Search, Settings, Menu, X, LogOut } from "lucide-react";
 import { LeftPanel } from "./LeftPanel";
 import { RightPanel } from "./RightPanel";
 import { MapView } from "./MapView";
@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
+import { LoginSignupModal } from "@/components/auth/LoginSignupModal";
 
 export function HomeMap() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -46,23 +47,33 @@ export function HomeMap() {
   const [searchGames, setSearchGames] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+  const [isGuest, setIsGuest] = useState(false);
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
 
   const handleMapReady = useCallback((map: mapboxgl.Map) => {
     mapRef.current = map;
     setMapReady(true);
   }, []);
 
-  // Monitor auth state changes (session expiration, sign out, etc.)
+  // Check if user is guest and monitor auth state changes
   useEffect(() => {
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setIsGuest(!user);
+    };
+    checkAuth();
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      // If user is signed out or session is invalid, redirect to login
-      if (event === "SIGNED_OUT" || (!session && event !== "INITIAL_SESSION")) {
-        window.location.href = "/login";
+      // Update guest state based on auth
+      if (event === "SIGNED_IN" && session) {
+        setIsGuest(false);
+      } else if (event === "SIGNED_OUT") {
+        setIsGuest(true);
+      } else if (!session && event === "INITIAL_SESSION") {
+        setIsGuest(true);
       }
-      // If token is refreshed, that's good - user stays logged in
-      // This ensures persistent sessions as requested
     });
 
     return () => {
@@ -70,17 +81,17 @@ export function HomeMap() {
     };
   }, [supabase]);
 
-  // Load profile when component mounts
+  // Load profile when component mounts (only for authenticated users)
   useEffect(() => {
     async function loadProfile() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        // Guest mode - don't load profile
+        return;
+      }
+
       setProfileLoading(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-          // If no user, redirect to login
-          window.location.href = "/login";
-          return;
-        }
 
         const { data: profile, error } = await supabase
           .from("profiles")
@@ -198,6 +209,20 @@ export function HomeMap() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        alert("Failed to log out: " + error.message);
+        return;
+      }
+      // Redirect to home page (which will show guest mode)
+      window.location.href = "/home";
+    } catch (err) {
+      alert("An unexpected error occurred while logging out.");
+    }
+  };
+
   const initials = displayName
     .split(" ")
     .filter((part) => part.length > 0)
@@ -294,7 +319,7 @@ export function HomeMap() {
 
             const el = marker.getElement();
             el.addEventListener("click", () => {
-              setSelectedGame(game);
+              handleGameSelect(game);
             });
             el.style.cursor = "pointer";
 
@@ -357,7 +382,7 @@ export function HomeMap() {
         // Add click handler to show detail box
         const el = marker.getElement();
         el.addEventListener("click", () => {
-          setSelectedGame(game);
+          handleGameSelect(game);
         });
         el.style.cursor = "pointer";
 
@@ -429,7 +454,7 @@ export function HomeMap() {
       // Add click handler
       const el = newMarker.getElement();
       el.addEventListener("click", () => {
-        setSelectedGame(updatedGame);
+        handleGameSelect(updatedGame);
       });
       el.style.cursor = "pointer";
 
@@ -440,22 +465,35 @@ export function HomeMap() {
     window.location.reload();
   };
 
+  const handleGameSelect = (game: any) => {
+    // Allow guests to see game details, but with login prompt
+    setSelectedGame(game);
+  };
+
+  const handleLoginSuccess = () => {
+    setLoginModalOpen(false);
+    // Reload to refresh UI
+    window.location.reload();
+  };
+
   return (
     <div className="flex flex-col h-screen w-full px-2 sm:px-4 pb-2 sm:pb-4 animate-in fade-in duration-500">
       {/* Top Bar */}
       <header className="sticky top-0 z-30 h-12 sm:h-14 flex items-center shrink-0 gap-2 sm:gap-3 bg-card/60 backdrop-blur-xl border-b border-white/10 rounded-lg mb-2 px-3 sm:px-4 shadow-lg transition-all duration-300 hover:shadow-xl" style={{ boxShadow: "0 4px 16px 0 rgba(0, 0, 0, 0.2)" }}>
         {/* Left - Logo and Mobile Menu */}
         <div className="flex items-center gap-2 sm:w-80">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden h-8 w-8 transition-all duration-200 hover:scale-110 active:scale-95"
-            onClick={() => {
-              setLeftPanelOpen((open) => !open);
-            }}
-          >
-            {leftPanelOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-          </Button>
+          {!isGuest && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden h-8 w-8 transition-all duration-200 hover:scale-110 active:scale-95"
+              onClick={() => {
+                setLeftPanelOpen((open) => !open);
+              }}
+            >
+              {leftPanelOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+            </Button>
+          )}
           <h1 className="text-base sm:text-lg font-medium">powkie</h1>
         </div>
 
@@ -475,25 +513,38 @@ export function HomeMap() {
           </Button>
         </div>
 
-        {/* Right - Button Group */}
-        <div className="flex items-center gap-2 sm:w-80 sm:justify-end">
-          <ButtonGroup className="hidden sm:flex">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="h-9 w-9 sm:h-10 sm:w-10 transition-all duration-200 hover:scale-110 active:scale-95"
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
+        {/* Right - Button Group (hidden for guests) */}
+        {!isGuest && (
+          <div className="flex items-center gap-2 sm:w-80 sm:justify-end">
+            <ButtonGroup className="hidden sm:flex">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-9 w-9 sm:h-10 sm:w-10 transition-all duration-200 hover:scale-110 active:scale-95"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                className="h-9 w-9 sm:h-10 sm:w-10 rounded-full p-0 flex items-center justify-center font-semibold text-xs sm:text-sm transition-all duration-200 hover:scale-110 active:scale-95 hover:ring-2 hover:ring-green-600/50"
+                onClick={() => setProfileOpen(true)}
+              >
+                {initials}
+              </Button>
+            </ButtonGroup>
+          </div>
+        )}
+        {isGuest && (
+          <div className="flex items-center gap-2 sm:w-80 sm:justify-end">
             <Button
               variant="outline"
-              className="h-9 w-9 sm:h-10 sm:w-10 rounded-full p-0 flex items-center justify-center font-semibold text-xs sm:text-sm transition-all duration-200 hover:scale-110 active:scale-95 hover:ring-2 hover:ring-green-600/50"
-              onClick={() => setProfileOpen(true)}
+              className="h-9 px-4 text-sm transition-all duration-200 hover:scale-105 active:scale-95"
+              onClick={() => setLoginModalOpen(true)}
             >
-              {initials}
+              Log In
             </Button>
-          </ButtonGroup>
-        </div>
+          </div>
+        )}
       </header>
 
       {/* Command Dialog */}
@@ -527,7 +578,7 @@ export function HomeMap() {
                     key={game.id}
                     value={searchableText}
                     onSelect={() => {
-                      setSelectedGame(game);
+                      handleGameSelect(game);
                       setCommandOpen(false);
                     }}
                     className="flex items-center gap-3 p-3 cursor-pointer"
@@ -547,9 +598,11 @@ export function HomeMap() {
             </CommandGroup>
           )}
           <CommandGroup heading="Quick Actions">
-            <CommandItem onSelect={() => setProfileOpen(true)}>
-              View profile
-            </CommandItem>
+            {!isGuest && (
+              <CommandItem onSelect={() => setProfileOpen(true)}>
+                View profile
+              </CommandItem>
+            )}
           </CommandGroup>
         </CommandList>
       </CommandDialog>
@@ -623,48 +676,64 @@ export function HomeMap() {
               />
             </div>
           </div>
-          <DialogFooter className="mt-4">
-            <Button
-              variant="outline"
-              onClick={async () => {
-                setProfileOpen(false);
-                setProfileError(null);
-                // Reload profile data when canceling
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) {
-                  const { data: profile } = await supabase
-                    .from("profiles")
-                    .select("display_name, bio, contact_email, contact_phone")
-                    .eq("user_id", user.id)
-                    .single();
-                  if (profile) {
-                    setDisplayName(profile.display_name || "Player");
-                    setBio(profile.bio || "");
-                    setContactEmail(profile.contact_email || "");
-                    setContactPhone(profile.contact_phone || "");
+          <DialogFooter className="mt-4 flex-col sm:flex-row gap-2">
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  setProfileOpen(false);
+                  setProfileError(null);
+                  // Reload profile data when canceling
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (user) {
+                    const { data: profile } = await supabase
+                      .from("profiles")
+                      .select("display_name, bio, contact_email, contact_phone")
+                      .eq("user_id", user.id)
+                      .single();
+                    if (profile) {
+                      setDisplayName(profile.display_name || "Player");
+                      setBio(profile.bio || "");
+                      setContactEmail(profile.contact_email || "");
+                      setContactPhone(profile.contact_phone || "");
+                    }
                   }
-                }
-              }}
-              disabled={profileSaving}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveProfile}
-              disabled={profileSaving}
-            >
-              {profileSaving ? "Saving..." : "Save profile"}
-            </Button>
+                }}
+                disabled={profileSaving}
+                className="w-full sm:w-auto"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveProfile}
+                disabled={profileSaving}
+                className="w-full sm:w-auto"
+              >
+                {profileSaving ? "Saving..." : "Save profile"}
+              </Button>
+            </div>
+            <div className="w-full sm:w-auto border-t border-border pt-2 sm:pt-0 sm:border-t-0">
+              <Button
+                variant="outline"
+                onClick={handleLogout}
+                disabled={profileSaving}
+                className="w-full sm:w-auto text-red-600 hover:text-red-700 hover:bg-red-600/10 border-red-600/20"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Log Out
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Main Content */}
       <div className="flex flex-1 gap-2 sm:gap-3 min-h-0 relative">
-        {/* Left Panel - Always visible on desktop, drawer on mobile */}
-        <div className={`hidden md:block animate-in slide-in-from-left-4 fade-in duration-500 ${leftPanelOpen ? "" : ""}`}>
-          <LeftPanel
-            onGameCreated={(game) => {
+        {/* Left Panel - Always visible on desktop, drawer on mobile (hidden for guests) */}
+        {!isGuest && (
+          <div className={`hidden md:block animate-in slide-in-from-left-4 fade-in duration-500 ${leftPanelOpen ? "" : ""}`}>
+            <LeftPanel
+              onGameCreated={(game) => {
               if (!mapRef.current) return;
               const marker = new mapboxgl.Marker({ color: "#22c55e" })
                 .setLngLat([game.lng, game.lat])
@@ -673,16 +742,17 @@ export function HomeMap() {
               // Add click handler
               const el = marker.getElement();
               el.addEventListener("click", () => {
-                setSelectedGame(game);
+                handleGameSelect(game);
               });
               el.style.cursor = "pointer";
 
               markersRef.current.set(game.id, marker);
             }}
           />
-        </div>
-        {/* Mobile Left Panel - Full Screen with backdrop blur */}
-        {leftPanelOpen && (
+          </div>
+        )}
+        {/* Mobile Left Panel - Full Screen with backdrop blur (hidden for guests) */}
+        {!isGuest && leftPanelOpen && (
           <>
             {/* Backdrop blur for content behind */}
             <div className="md:hidden absolute inset-0 z-40 bg-black/20 backdrop-blur-md animate-in fade-in duration-300" />
@@ -698,7 +768,7 @@ export function HomeMap() {
                   // Add click handler
                   const el = marker.getElement();
                   el.addEventListener("click", () => {
-                    setSelectedGame(game);
+                    handleGameSelect(game);
                   });
                   el.style.cursor = "pointer";
 
@@ -719,20 +789,29 @@ export function HomeMap() {
               onClose={() => setSelectedGame(null)}
               onGameDeleted={handleGameDeleted}
               onGameUpdated={handleGameUpdated}
+              isGuest={isGuest}
+              onLoginRequest={() => setLoginModalOpen(true)}
             />
           )}
         </div>
 
         {/* Right Panel - Always visible on desktop */}
         <div className="hidden md:block animate-in slide-in-from-right-4 fade-in duration-500">
-          <RightPanel onGameSelect={setSelectedGame} />
+          <RightPanel onGameSelect={handleGameSelect} isGuest={isGuest} />
         </div>
         {/* Mobile Right Panel - Hide when game details are open */}
         {!selectedGame && (
           <div className="md:hidden absolute left-0 right-0 bottom-0 z-40 h-[33vh] shadow-2xl rounded-t-2xl overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-300">
-            <RightPanel onGameSelect={setSelectedGame} />
+            <RightPanel onGameSelect={handleGameSelect} isGuest={isGuest} />
           </div>
         )}
+
+        {/* Login/Signup Modal */}
+        <LoginSignupModal
+          open={loginModalOpen}
+          onClose={() => setLoginModalOpen(false)}
+          onSuccess={handleLoginSuccess}
+        />
 
       </div>
     </div>

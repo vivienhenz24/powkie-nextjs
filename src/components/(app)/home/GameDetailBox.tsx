@@ -23,6 +23,8 @@ interface GameDetailBoxProps {
   onClose: () => void;
   onGameDeleted?: () => void;
   onGameUpdated?: (updatedGame: any) => void;
+  isGuest?: boolean;
+  onLoginRequest?: () => void;
 }
 
 interface Player {
@@ -32,7 +34,7 @@ interface Player {
   isHost: boolean;
 }
 
-export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: GameDetailBoxProps) {
+export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated, isGuest = false, onLoginRequest }: GameDetailBoxProps) {
   const supabase = createSupabaseBrowserClient();
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,6 +185,12 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
   };
 
   useEffect(() => {
+    // Don't load player data for guests
+    if (isGuest) {
+      setLoading(false);
+      return;
+    }
+
     async function loadData() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -213,7 +221,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
     }, 10000);
 
     return () => clearInterval(refreshInterval);
-  }, [game.id, game.host_id, reloadPlayers]);
+  }, [game.id, game.host_id, reloadPlayers, isGuest]);
 
   const handleDelete = async () => {
     if (!isHost || !currentUserId) return;
@@ -614,7 +622,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
               <div>
                 <p className="text-xs text-muted-foreground">Players</p>
                 <p className="text-sm font-medium">
-                  {loading ? "Loading..." : (() => {
+                  {isGuest ? "Log in to view" : loading ? "Loading..." : (() => {
                     const currentPlayers = players.length;
                     const availableSeats = game.max_players ? game.max_players - currentPlayers : null;
                     return availableSeats !== null 
@@ -634,18 +642,24 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
                 <Users className="h-5 w-5" />
                 Players ({loading ? "..." : players.length})
               </h3>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={reloadPlayers}
-                disabled={loading}
-                title="Refresh players list"
-              >
-                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-              </Button>
+              {!isGuest && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={reloadPlayers}
+                  disabled={loading}
+                  title="Refresh players list"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                </Button>
+              )}
             </div>
-            {loading ? (
+            {isGuest ? (
+              <div className="text-sm text-muted-foreground p-4 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10">
+                Log in to view players and join this game.
+              </div>
+            ) : loading ? (
               <div className="text-sm text-muted-foreground">Loading players...</div>
             ) : players.length === 0 ? (
               <div className="text-sm text-muted-foreground p-4 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10">
@@ -702,8 +716,8 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
             )}
           </div>
 
-          {/* Host Contact */}
-          {hostContact && hostContact.email && (
+          {/* Host Contact (hidden for guests) */}
+          {!isGuest && hostContact && hostContact.email && (
             <div>
               <h3 className="text-base sm:text-lg font-semibold mb-3 flex items-center gap-2">
                 Contact Host
@@ -783,36 +797,64 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
               </>
             )}
           </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            {isEditing ? (
-              <>
+          {isGuest ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm text-muted-foreground">
+                Log in or sign up to join games, view player details, and host your own games.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Button
-                  variant="outline"
-                  onClick={handleCancelEdit}
-                  disabled={saving}
+                  onClick={() => {
+                    if (onLoginRequest) {
+                      onLoginRequest();
+                    }
+                    handleClose();
+                  }}
+                  className="w-full sm:w-auto justify-center"
+                >
+                  Log In / Sign Up
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={handleClose}
+                  className="w-full sm:w-auto justify-center"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col sm:flex-row gap-2">
+              {isEditing ? (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={handleCancelEdit}
+                    disabled={saving}
+                    className="transition-all duration-200 hover:scale-105 active:scale-95 w-full sm:w-auto"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSaveEdit}
+                    disabled={saving}
+                    className="flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95 w-full sm:w-auto justify-center"
+                  >
+                    <Save className="h-4 w-4" />
+                    {saving ? "Saving..." : "Save Changes"}
+                  </Button>
+                </>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  onClick={handleClose}
                   className="transition-all duration-200 hover:scale-105 active:scale-95 w-full sm:w-auto"
                 >
-                  Cancel
+                  Close
                 </Button>
-                <Button
-                  onClick={handleSaveEdit}
-                  disabled={saving}
-                  className="flex items-center gap-2 transition-all duration-200 hover:scale-105 active:scale-95 w-full sm:w-auto justify-center"
-                >
-                  <Save className="h-4 w-4" />
-                  {saving ? "Saving..." : "Save Changes"}
-                </Button>
-              </>
-            ) : (
-              <Button 
-                variant="outline" 
-                onClick={handleClose}
-                className="transition-all duration-200 hover:scale-105 active:scale-95 w-full sm:w-auto"
-              >
-                Close
-              </Button>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

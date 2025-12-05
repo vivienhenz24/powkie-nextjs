@@ -1,5 +1,6 @@
-import { Hero } from "@/components/landing/Hero";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <Hero />;
+  // Redirect root to /home for guest preview
+  redirect("/home");
 }
