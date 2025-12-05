@@ -148,8 +148,28 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated }: G
         }
       }
 
+      // Sort players alphabetically by first name, then last name
+      const sortedPlayers = playersList.sort((a, b) => {
+        const aNameParts = a.display_name.trim().split(/\s+/);
+        const bNameParts = b.display_name.trim().split(/\s+/);
+        
+        const aFirstName = aNameParts[0] || "";
+        const bFirstName = bNameParts[0] || "";
+        const aLastName = aNameParts.slice(1).join(" ") || "";
+        const bLastName = bNameParts.slice(1).join(" ") || "";
+        
+        // Compare by first name first
+        const firstNameCompare = aFirstName.localeCompare(bFirstName, undefined, { sensitivity: 'base' });
+        if (firstNameCompare !== 0) {
+          return firstNameCompare;
+        }
+        
+        // If first names are equal, compare by last name
+        return aLastName.localeCompare(bLastName, undefined, { sensitivity: 'base' });
+      });
+
       // Always set players list, even if empty (should at least have host)
-      setPlayers(playersList);
+      setPlayers(sortedPlayers);
     } catch (err) {
       console.error("Error reloading players:", err);
     }
