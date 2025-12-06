@@ -19,6 +19,8 @@ interface GameDetailBoxProps {
     host_id: string;
     lng?: number;
     lat?: number;
+    notes?: string | null;
+    archived?: boolean;
   };
   onClose: () => void;
   onGameDeleted?: () => void;
@@ -56,6 +58,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated, isG
   const [gameDate, setGameDate] = useState(game.game_date);
   const [startTime, setStartTime] = useState(game.start_time);
   const [maxPlayers, setMaxPlayers] = useState<string>(game.max_players?.toString() || "");
+  const [notes, setNotes] = useState(game.notes || "");
   
   // Host contact info
   const [hostContact, setHostContact] = useState<{ email?: string; phone?: string } | null>(null);
@@ -307,6 +310,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated, isG
               start_time: startTime,
               buy_in: "", // Temporarily disabled - will be implemented later
               max_players: maxPlayers ? Number(maxPlayers) : null,
+              notes: notes || null,
               ...(addressChanged && { lng, lat }),
             })
         .eq("id", game.id)
@@ -322,8 +326,8 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated, isG
 
       setIsEditing(false);
       if (onGameUpdated && updatedGame) {
-        // Ensure location_name is included in the updated game
-        onGameUpdated({ ...updatedGame, location_name: locationName || null });
+        // Ensure location_name and notes are included in the updated game
+        onGameUpdated({ ...updatedGame, location_name: locationName || null, notes: notes || null });
       }
     } catch (err) {
       setEditError("An unexpected error occurred while updating the game.");
@@ -342,6 +346,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated, isG
         setGameDate(game.game_date);
         setStartTime(game.start_time);
         setMaxPlayers(game.max_players?.toString() || "");
+        setNotes(game.notes || "");
     // Smooth transition out of edit mode
     setIsEditing(false);
   };
@@ -351,7 +356,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated, isG
   };
 
   const handleJoin = async () => {
-    if (!currentUserId || isHost || isJoined) return;
+    if (!currentUserId || isHost || isJoined || game.archived) return;
 
     setIsJoining(true);
     try {
@@ -379,7 +384,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated, isG
   };
 
   const handleLeave = async () => {
-    if (!currentUserId || isHost || !isJoined) return;
+    if (!currentUserId || isHost || !isJoined || game.archived) return;
 
     setIsJoining(true);
     try {
@@ -599,6 +604,21 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated, isG
                   disabled={saving}
                 />
               </div>
+
+              <div className="space-y-2">
+                <label htmlFor="editNotes" className="text-sm font-medium">
+                  Notes{" "}
+                  <span className="text-xs text-muted-foreground">(optional)</span>
+                </label>
+                <textarea
+                  id="editNotes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Add any additional information about the game..."
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none min-h-[100px]"
+                  disabled={saving}
+                />
+              </div>
             </div>
           ) : (
             /* Game Details Grid */
@@ -632,6 +652,14 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated, isG
                 </p>
               </div>
             </div>
+            </div>
+          )}
+
+          {/* Notes Section - shown in both view and edit modes */}
+          {!isEditing && game.notes && (
+            <div className="mt-4 p-4 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10">
+              <h3 className="text-sm font-semibold mb-2 text-foreground">Notes</h3>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{game.notes}</p>
             </div>
           )}
 
@@ -751,7 +779,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated, isG
         {/* Footer */}
         <div className="border-t border-white/10 bg-white/5 backdrop-blur-sm p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex flex-wrap gap-2">
-            {isHost && !isEditing && (
+            {isHost && !isEditing && !game.archived && (
               <Button
                 variant="outline"
                 onClick={handleStartEdit}
@@ -761,7 +789,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated, isG
                 Edit Game
               </Button>
             )}
-            {isHost && isEditing && (
+            {isHost && isEditing && !game.archived && (
               <Button
                 variant="destructive"
                 onClick={handleDelete}
@@ -772,7 +800,7 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated, isG
                 {deleting ? "Deleting..." : "Delete Game"}
               </Button>
             )}
-            {!isHost && !isEditing && (
+            {!isHost && !isEditing && !game.archived && (
               <>
                 {!isJoined ? (
                   <Button
@@ -795,6 +823,11 @@ export function GameDetailBox({ game, onClose, onGameDeleted, onGameUpdated, isG
                   </Button>
                 )}
               </>
+            )}
+            {game.archived && (
+              <div className="text-sm text-muted-foreground italic p-3 rounded-lg bg-white/5 backdrop-blur-sm border border-white/10 w-full">
+                This game has been archived and is no longer active.
+              </div>
             )}
           </div>
           {isGuest ? (

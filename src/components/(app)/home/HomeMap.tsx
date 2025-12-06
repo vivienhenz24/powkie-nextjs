@@ -58,8 +58,20 @@ export function HomeMap() {
   // Check if user is guest and monitor auth state changes
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setIsGuest(!user);
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) {
+          // If there's an error (e.g., network issue), assume guest mode
+          console.warn("Auth check failed, defaulting to guest mode:", error.message);
+          setIsGuest(true);
+          return;
+        }
+        setIsGuest(!user);
+      } catch (err) {
+        // Catch any unexpected errors and default to guest mode
+        console.warn("Auth check error, defaulting to guest mode:", err);
+        setIsGuest(true);
+      }
     };
     checkAuth();
 
@@ -84,14 +96,14 @@ export function HomeMap() {
   // Load profile when component mounts (only for authenticated users)
   useEffect(() => {
     async function loadProfile() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        // Guest mode - don't load profile
-        return;
-      }
-
-      setProfileLoading(true);
       try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+          // Guest mode or auth error - don't load profile
+          return;
+        }
+
+        setProfileLoading(true);
 
         const { data: profile, error } = await supabase
           .from("profiles")
@@ -139,8 +151,11 @@ export function HomeMap() {
     if (profileOpen) {
       async function loadProfileForDialog() {
         try {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return;
+          const { data: { user }, error: authError } = await supabase.auth.getUser();
+          if (authError || !user) {
+            setProfileError("You must be logged in to view your profile");
+            return;
+          }
 
           const { data: profile, error } = await supabase
             .from("profiles")
@@ -164,6 +179,7 @@ export function HomeMap() {
             setContactEmail(user.email);
           }
         } catch (err) {
+          console.warn("Failed to load profile for dialog:", err);
           setProfileError("Failed to load profile");
         }
       }
@@ -177,8 +193,8 @@ export function HomeMap() {
     setProfileError(null);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
         setProfileError("You must be logged in to save your profile");
         setProfileSaving(false);
         return;
@@ -213,13 +229,17 @@ export function HomeMap() {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) {
-        alert("Failed to log out: " + error.message);
+        console.error("Logout error:", error);
+        // Even if signOut fails, try to redirect to clear local state
+        window.location.href = "/home";
         return;
       }
       // Redirect to home page (which will show guest mode)
       window.location.href = "/home";
     } catch (err) {
-      alert("An unexpected error occurred while logging out.");
+      console.error("Logout error:", err);
+      // Even on error, try to redirect
+      window.location.href = "/home";
     }
   };
 
@@ -230,13 +250,14 @@ export function HomeMap() {
     .map((part) => part[0]?.toUpperCase())
     .join("") || "PP";
 
-  // Clean up games that are 3+ hours past their start time
+  // Archive games that are 3+ hours past their start time
   const cleanupExpiredGames = useCallback(async () => {
     try {
       const now = new Date();
       const { data: allGames, error: fetchError } = await supabase
         .from("games")
-        .select("*");
+        .select("*")
+        .eq("archived", false); // Only check non-archived games
 
       if (fetchError || !allGames) return;
 
@@ -247,37 +268,47 @@ export function HomeMap() {
         const gameStartDate = new Date(`${game.game_date}T${game.start_time}`);
         
         // Add 3 hours to the start time
-        const deletionTime = new Date(gameStartDate.getTime() + 3 * 60 * 60 * 1000);
+        const archiveTime = new Date(gameStartDate.getTime() + 3 * 60 * 60 * 1000);
         
-        // If current time is past the deletion time, mark for deletion
-        if (now >= deletionTime) {
+        // If current time is past the archive time, mark for archiving
+        if (now >= archiveTime) {
           expiredGameIds.push(game.id);
         }
       }
 
-      // Delete expired games
+      // Archive expired games
       if (expiredGameIds.length > 0) {
-        const { error: deleteError } = await supabase
+        const { error: archiveError } = await supabase
           .from("games")
-          .delete()
+          .update({ archived: true })
           .in("id", expiredGameIds);
 
-        if (deleteError) {
-          console.error("Error deleting expired games:", deleteError);
+        if (archiveError) {
+          console.error("Error archiving expired games:", archiveError);
+        } else {
+          // Remove markers for archived games
+          expiredGameIds.forEach((gameId) => {
+            const marker = markersRef.current.get(gameId);
+            if (marker) {
+              marker.remove();
+              markersRef.current.delete(gameId);
+            }
+          });
         }
       }
     } catch (err) {
-      console.error("Error cleaning up expired games:", err);
+      console.error("Error archiving expired games:", err);
     }
   }, [supabase]);
 
-  // Load games for search and markers
+  // Load games for search and markers (exclude archived games)
   const loadGames = useCallback(async () => {
     try {
       const today = new Date().toISOString().slice(0, 10);
       const { data: games, error } = await supabase
         .from("games")
         .select("*")
+        .eq("archived", false) // Only load non-archived games
         .gte("game_date", today)
         .order("game_date", { ascending: true })
         .order("start_time", { ascending: true });
@@ -684,19 +715,24 @@ export function HomeMap() {
                   setProfileOpen(false);
                   setProfileError(null);
                   // Reload profile data when canceling
-                  const { data: { user } } = await supabase.auth.getUser();
-                  if (user) {
-                    const { data: profile } = await supabase
-                      .from("profiles")
-                      .select("display_name, bio, contact_email, contact_phone")
-                      .eq("user_id", user.id)
-                      .single();
-                    if (profile) {
-                      setDisplayName(profile.display_name || "Player");
-                      setBio(profile.bio || "");
-                      setContactEmail(profile.contact_email || "");
-                      setContactPhone(profile.contact_phone || "");
+                  try {
+                    const { data: { user }, error: authError } = await supabase.auth.getUser();
+                    if (!authError && user) {
+                      const { data: profile } = await supabase
+                        .from("profiles")
+                        .select("display_name, bio, contact_email, contact_phone")
+                        .eq("user_id", user.id)
+                        .single();
+                      if (profile) {
+                        setDisplayName(profile.display_name || "Player");
+                        setBio(profile.bio || "");
+                        setContactEmail(profile.contact_email || "");
+                        setContactPhone(profile.contact_phone || "");
+                      }
                     }
+                  } catch (err) {
+                    // Silently fail - user is just canceling anyway
+                    console.warn("Failed to reload profile on cancel:", err);
                   }
                 }}
                 disabled={profileSaving}

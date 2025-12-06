@@ -1,9 +1,10 @@
  "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase-browser";
 import { PokerGameCard } from "./PokerGameCard";
+import { ChevronDown, ChevronUp, Archive } from "lucide-react";
 
 interface GameWithMeta {
   id: string;
@@ -30,18 +31,23 @@ interface RightPanelProps {
 export function RightPanel({ onGameSelect, isGuest = false }: RightPanelProps) {
   const supabase = createSupabaseBrowserClient();
   const [games, setGames] = useState<GameWithMeta[]>([]);
+  const [archivedGames, setArchivedGames] = useState<GameWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [archivedLoading, setArchivedLoading] = useState(false);
+  const [archivedOpen, setArchivedOpen] = useState(false);
   const [joiningId, setJoiningId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const isLoadingArchivedRef = useRef(false);
 
-  // Clean up games that are 3+ hours past their start time
+  // Archive games that are 3+ hours past their start time
   const cleanupExpiredGames = useCallback(async () => {
     try {
       const now = new Date();
       const { data: allGames, error: fetchError } = await supabase
         .from("games")
-        .select("*");
+        .select("*")
+        .eq("archived", false); // Only check non-archived games
 
       if (fetchError || !allGames) return false;
 
@@ -52,30 +58,30 @@ export function RightPanel({ onGameSelect, isGuest = false }: RightPanelProps) {
         const gameStartDate = new Date(`${game.game_date}T${game.start_time}`);
         
         // Add 3 hours to the start time
-        const deletionTime = new Date(gameStartDate.getTime() + 3 * 60 * 60 * 1000);
+        const archiveTime = new Date(gameStartDate.getTime() + 3 * 60 * 60 * 1000);
         
-        // If current time is past the deletion time, mark for deletion
-        if (now >= deletionTime) {
+        // If current time is past the archive time, mark for archiving
+        if (now >= archiveTime) {
           expiredGameIds.push(game.id);
         }
       }
 
-      // Delete expired games
+      // Archive expired games
       if (expiredGameIds.length > 0) {
-        const { error: deleteError } = await supabase
+        const { error: archiveError } = await supabase
           .from("games")
-          .delete()
+          .update({ archived: true })
           .in("id", expiredGameIds);
 
-        if (deleteError) {
-          console.error("Error deleting expired games:", deleteError);
+        if (archiveError) {
+          console.error("Error archiving expired games:", archiveError);
           return false;
         }
-        return true; // Games were deleted
+        return true; // Games were archived
       }
-      return false; // No games to delete
+      return false; // No games to archive
     } catch (err) {
-      console.error("Error cleaning up expired games:", err);
+      console.error("Error archiving expired games:", err);
       return false;
     }
   }, [supabase]);
@@ -105,6 +111,7 @@ export function RightPanel({ onGameSelect, isGuest = false }: RightPanelProps) {
       const { data: gamesData, error: gamesError } = await supabase
         .from("games")
         .select("*")
+        .eq("archived", false) // Only load non-archived games
         .gte("game_date", today)
         .order("game_date", { ascending: true })
         .order("start_time", { ascending: true });
@@ -183,20 +190,143 @@ export function RightPanel({ onGameSelect, isGuest = false }: RightPanelProps) {
     }
   }, [supabase, cleanupExpiredGames]);
 
+  // Load archived games
+  const loadArchivedGames = useCallback(async () => {
+    // Prevent multiple simultaneous calls
+    if (isLoadingArchivedRef.current) {
+      console.log("Archived games already loading, skipping...");
+      return;
+    }
+    
+    isLoadingArchivedRef.current = true;
+    setArchivedLoading(true);
+    setError(null);
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      // Allow guest mode - don't require authentication to view games
+      if (user && !userError) {
+        setUserId(user.id);
+      } else {
+        setUserId(null);
+      }
+
+      const { data: gamesData, error: gamesError } = await supabase
+        .from("games")
+        .select("*")
+        .eq("archived", true) // Only load archived games (explicitly true, not null)
+        .order("game_date", { ascending: false })
+        .order("start_time", { ascending: false })
+        .limit(20); // Limit to 20 most recent archived games
+
+      console.log("Archived games query result:", { gamesData, gamesError });
+
+      if (gamesError) {
+        console.error("Error loading archived games:", gamesError);
+        setArchivedGames([]);
+        setArchivedLoading(false);
+        return;
+      }
+
+      if (!gamesData || gamesData.length === 0) {
+        setArchivedGames([]);
+        setArchivedLoading(false);
+        return;
+      }
+
+      const gameIds = gamesData.map((g) => g.id);
+
+      const { data: playersData, error: playersError } = await supabase
+        .from("game_players")
+        .select("game_id, player_id")
+        .in("game_id", gameIds);
+
+      if (playersError) {
+        console.error("Error loading players for archived games:", playersError);
+        // Continue anyway - we'll just show 0 players
+      }
+
+      const metaByGame = new Map<
+        string,
+        { playersCount: number; isJoined: boolean }
+      >();
+
+      playersData?.forEach((row) => {
+        const current = metaByGame.get(row.game_id) || {
+          playersCount: 0,
+          isJoined: false,
+        };
+        current.playersCount += 1;
+        if (user && row.player_id === user.id) {
+          current.isJoined = true;
+        }
+        metaByGame.set(row.game_id, current);
+      });
+
+      const withMeta: GameWithMeta[] = gamesData.map((g: any) => {
+        const meta = metaByGame.get(g.id) || {
+          playersCount: 0,
+          isJoined: false,
+        };
+        // Host always counts as 1 player, so add 1 to the count
+        return {
+          id: g.id,
+          game_type: g.game_type,
+          location_name: g.location_name,
+          address: g.address,
+          game_date: g.game_date,
+          start_time: g.start_time,
+          buy_in: g.buy_in,
+          max_players: g.max_players,
+          host_id: g.host_id,
+          lng: g.lng,
+          lat: g.lat,
+          playersCount: meta.playersCount + 1, // +1 for the host
+          isJoined: user ? (meta.isJoined || g.host_id === user.id) : false,
+          isHost: user ? g.host_id === user.id : false,
+        };
+      });
+
+      setArchivedGames(withMeta);
+    } catch (err) {
+      console.error("Error loading archived games:", err);
+      setArchivedGames([]);
+    } finally {
+      setArchivedLoading(false);
+      isLoadingArchivedRef.current = false;
+    }
+  }, [supabase]);
+
   useEffect(() => {
     loadGames();
 
     // Periodic cleanup of expired games (every 5 minutes)
     const cleanupInterval = setInterval(async () => {
-      const gamesDeleted = await cleanupExpiredGames();
-      // If games were deleted, reload the games list
-      if (gamesDeleted) {
+      const gamesArchived = await cleanupExpiredGames();
+      // If games were archived, reload the games list
+      if (gamesArchived) {
         loadGames();
       }
     }, 5 * 60 * 1000); // 5 minutes
 
     return () => clearInterval(cleanupInterval);
   }, [loadGames, cleanupExpiredGames]);
+
+  // Load archived games when dropdown is opened
+  useEffect(() => {
+    if (archivedOpen && !isLoadingArchivedRef.current) {
+      loadArchivedGames().catch((err) => {
+        console.error("Failed to load archived games:", err);
+        setArchivedLoading(false);
+        isLoadingArchivedRef.current = false;
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [archivedOpen]);
 
   const handleJoin = async (gameId: string) => {
     if (!userId) return;
@@ -354,6 +484,70 @@ export function RightPanel({ onGameSelect, isGuest = false }: RightPanelProps) {
               )}
             </div>
           ))}
+        </div>
+
+        {/* Archived Games Section */}
+        <div className="mt-4 pt-4 border-t border-white/10">
+          <Button
+            variant="ghost"
+            className="w-full justify-between text-sm font-medium text-muted-foreground hover:text-foreground"
+            onClick={() => setArchivedOpen(!archivedOpen)}
+          >
+            <div className="flex items-center gap-2">
+              <Archive className="h-4 w-4" />
+              <span>Archived Games</span>
+            </div>
+            {archivedOpen ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </Button>
+
+          {archivedOpen && (
+            <div className="mt-3 space-y-2 sm:space-y-3 animate-in fade-in slide-in-from-top-4 duration-300">
+              {archivedLoading && (
+                <div className="space-y-2">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="h-20 bg-white/5 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              )}
+
+              {!archivedLoading && archivedGames.length === 0 && (
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  No archived games yet.
+                </p>
+              )}
+
+              {!archivedLoading &&
+                archivedGames.map((game, index) => (
+                  <div
+                    key={game.id}
+                    className="space-y-2 animate-in fade-in slide-in-from-bottom-4 duration-500 opacity-60"
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    <PokerGameCard
+                      gameType={game.game_type}
+                      locationName={game.location_name}
+                      address={game.address}
+                      date={(() => {
+                        const [year, month, day] = game.game_date.split('-').map(Number);
+                        const date = new Date(year, month - 1, day);
+                        return date.toLocaleDateString();
+                      })()}
+                      time={game.start_time}
+                      players={game.playersCount}
+                      maxPlayers={game.max_players}
+                      onClick={() => onGameSelect?.(game)}
+                    />
+                    <div className="text-xs text-muted-foreground italic">
+                      Archived
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

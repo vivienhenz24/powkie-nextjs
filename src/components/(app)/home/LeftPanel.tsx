@@ -28,6 +28,7 @@ export function LeftPanel({ onGameCreated, onClose }: LeftPanelProps) {
   const [gameDate, setGameDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [maxPlayers, setMaxPlayers] = useState<string>("");
+  const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -92,6 +93,7 @@ export function LeftPanel({ onGameCreated, onClose }: LeftPanelProps) {
           start_time: startTime,
           buy_in: "", // Temporarily disabled - will be implemented later
           max_players: maxPlayers ? Number(maxPlayers) : null,
+          notes: notes || null,
         })
         .select()
         .single();
@@ -109,6 +111,7 @@ export function LeftPanel({ onGameCreated, onClose }: LeftPanelProps) {
       setGameDate("");
       setStartTime("");
       setMaxPlayers("");
+      setNotes("");
 
       if (insertData && onGameCreated) {
         onGameCreated(insertData);
@@ -239,6 +242,21 @@ export function LeftPanel({ onGameCreated, onClose }: LeftPanelProps) {
               onChange={(e) => setMaxPlayers(e.target.value)}
               placeholder="8"
               className="h-8 sm:h-9 text-xs sm:text-sm"
+              disabled={loading}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label htmlFor="notes" className="font-medium">
+              Notes{" "}
+              <span className="text-[10px] sm:text-xs text-muted-foreground">(optional)</span>
+            </label>
+            <textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add any additional information about the game..."
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs sm:text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none min-h-[80px] transition-all duration-200 focus:scale-[1.01]"
               disabled={loading}
             />
           </div>
