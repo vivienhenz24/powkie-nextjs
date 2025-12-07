@@ -1,4 +1,4 @@
- "use client";
+"use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -44,16 +44,21 @@ export function RightPanel({ onGameSelect, isGuest = false }: RightPanelProps) {
   const cleanupExpiredGames = useCallback(async () => {
     try {
       const now = new Date();
+      // Get all games and filter client-side to handle NULL values
       const { data: allGames, error: fetchError } = await supabase
         .from("games")
-        .select("*")
-        .eq("archived", false); // Only check non-archived games
+        .select("*");
 
-      if (fetchError || !allGames) return false;
+      // Filter out archived games (handles both NULL and false)
+      const nonArchivedGames = allGames?.filter(
+        (game) => game.archived !== true
+      ) || [];
+
+      if (fetchError || !nonArchivedGames) return false;
 
       const expiredGameIds: string[] = [];
 
-      for (const game of allGames) {
+      for (const game of nonArchivedGames) {
         // Combine game_date and start_time to create the game start datetime
         const gameStartDate = new Date(`${game.game_date}T${game.start_time}`);
         
@@ -107,28 +112,82 @@ export function RightPanel({ onGameSelect, isGuest = false }: RightPanelProps) {
       await cleanupExpiredGames();
 
       const today = new Date().toISOString().slice(0, 10);
+      console.log("Loading games - today's date:", today);
 
-      const { data: gamesData, error: gamesError } = await supabase
+      // Query for all games first (no date filter to see all games)
+      const { data: allGamesData, error: allGamesError } = await supabase
         .from("games")
         .select("*")
-        .eq("archived", false) // Only load non-archived games
-        .gte("game_date", today)
         .order("game_date", { ascending: true })
         .order("start_time", { ascending: true });
 
-      if (gamesError) {
-        setError(gamesError.message);
+      if (allGamesError) {
+        console.error("Error loading all games:", allGamesError);
+        setError(allGamesError.message);
         setLoading(false);
         return;
       }
 
-      if (!gamesData || gamesData.length === 0) {
+      console.log("All games from database:", {
+        total: allGamesData?.length || 0,
+        today: today,
+        games: allGamesData?.map((g) => ({ 
+          id: g.id, 
+          archived: g.archived, 
+          game_date: g.game_date,
+          game_date_vs_today: g.game_date >= today ? "FUTURE" : "PAST",
+          game_type: g.game_type,
+          location_name: g.location_name
+        }))
+      });
+
+      // Filter out archived games client-side (handles both NULL and false correctly)
+      const nonArchivedGames = allGamesData?.filter(
+        (game) => game.archived !== true
+      ) || [];
+
+      // Show all non-archived games (if they're not archived, they should be visible)
+      // Sort by date so upcoming games appear first
+      const upcomingGames = nonArchivedGames.sort((a, b) => {
+        // Sort by date: future dates first, then past dates
+        if (a.game_date >= today && b.game_date < today) return -1;
+        if (a.game_date < today && b.game_date >= today) return 1;
+        // If both are future or both are past, sort by date
+        return a.game_date.localeCompare(b.game_date);
+      });
+
+      console.log("Upcoming games (all non-archived):", {
+        count: upcomingGames.length,
+        games: upcomingGames.map((g) => ({ 
+          id: g.id, 
+          archived: g.archived, 
+          game_date: g.game_date,
+          is_future: g.game_date >= today
+        }))
+      });
+
+      console.log("Filtered games:", {
+        nonArchived: nonArchivedGames.length,
+        upcoming: upcomingGames.length,
+        nonArchivedGames: nonArchivedGames.map((g) => ({ 
+          id: g.id, 
+          archived: g.archived, 
+          game_date: g.game_date 
+        })),
+        upcomingGames: upcomingGames.map((g) => ({ 
+          id: g.id, 
+          archived: g.archived, 
+          game_date: g.game_date 
+        }))
+      });
+
+      if (upcomingGames.length === 0) {
         setGames([]);
         setLoading(false);
         return;
       }
 
-      const gameIds = gamesData.map((g) => g.id);
+      const gameIds = upcomingGames.map((g) => g.id);
 
       const { data: playersData, error: playersError } = await supabase
         .from("game_players")
@@ -158,7 +217,7 @@ export function RightPanel({ onGameSelect, isGuest = false }: RightPanelProps) {
         metaByGame.set(row.game_id, current);
       });
 
-        const withMeta: GameWithMeta[] = gamesData.map((g: any) => {
+        const withMeta: GameWithMeta[] = upcomingGames.map((g: any) => {
           const meta = metaByGame.get(g.id) || {
             playersCount: 0,
             isJoined: false,
@@ -215,15 +274,21 @@ export function RightPanel({ onGameSelect, isGuest = false }: RightPanelProps) {
         setUserId(null);
       }
 
+      // Query for archived games - explicitly true
       const { data: gamesData, error: gamesError } = await supabase
         .from("games")
         .select("*")
-        .eq("archived", true) // Only load archived games (explicitly true, not null)
+        .eq("archived", true) // Only load archived games (explicitly true)
         .order("game_date", { ascending: false })
         .order("start_time", { ascending: false })
         .limit(20); // Limit to 20 most recent archived games
 
-      console.log("Archived games query result:", { gamesData, gamesError });
+      console.log("Archived games query result:", { 
+        gamesData, 
+        gamesError,
+        count: gamesData?.length || 0,
+        sample: gamesData?.slice(0, 2).map((g) => ({ id: g.id, archived: g.archived, game_date: g.game_date }))
+      });
 
       if (gamesError) {
         console.error("Error loading archived games:", gamesError);
@@ -423,11 +488,11 @@ export function RightPanel({ onGameSelect, isGuest = false }: RightPanelProps) {
         )}
 
         {!loading && games.length === 0 && !error && (
-          <div className="space-y-2 sm:space-y-3 text-sm text-muted-foreground">
-            <p className="text-pop-up">
-              You don&apos;t have any upcoming games yet.
-            </p>
-            <p className="text-pop-up-delay-1">
+        <div className="space-y-2 sm:space-y-3 text-sm text-muted-foreground">
+          <p className="text-pop-up">
+            You don&apos;t have any upcoming games yet.
+          </p>
+          <p className="text-pop-up-delay-1">
               Once you create or join a game, it will show up here with the game type,
               time, and players.
             </p>

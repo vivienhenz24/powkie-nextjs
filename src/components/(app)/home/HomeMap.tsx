@@ -254,16 +254,21 @@ export function HomeMap() {
   const cleanupExpiredGames = useCallback(async () => {
     try {
       const now = new Date();
+      // Get all games and filter client-side to handle NULL values
       const { data: allGames, error: fetchError } = await supabase
         .from("games")
-        .select("*")
-        .eq("archived", false); // Only check non-archived games
+        .select("*");
 
-      if (fetchError || !allGames) return;
+      // Filter out archived games (handles both NULL and false)
+      const nonArchivedGames = allGames?.filter(
+        (game) => game.archived !== true
+      ) || [];
+
+      if (fetchError || !nonArchivedGames) return;
 
       const expiredGameIds: string[] = [];
 
-      for (const game of allGames) {
+      for (const game of nonArchivedGames) {
         // Combine game_date and start_time to create the game start datetime
         const gameStartDate = new Date(`${game.game_date}T${game.start_time}`);
         
@@ -308,13 +313,21 @@ export function HomeMap() {
       const { data: games, error } = await supabase
         .from("games")
         .select("*")
-        .eq("archived", false) // Only load non-archived games
         .gte("game_date", today)
         .order("game_date", { ascending: true })
         .order("start_time", { ascending: true });
 
       if (error || !games) return null;
-      return games;
+
+      // Filter out archived games client-side (handles both NULL and false correctly)
+      const nonArchivedGames = games.filter((game) => game.archived !== true);
+      
+      console.log("HomeMap games query:", {
+        total: games.length,
+        nonArchived: nonArchivedGames.length
+      });
+
+      return nonArchivedGames;
     } catch {
       return null;
     }
