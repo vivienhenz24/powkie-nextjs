@@ -60,13 +60,19 @@ export function RightPanel({ onGameSelect, isGuest = false }: RightPanelProps) {
 
       for (const game of nonArchivedGames) {
         // Combine game_date and start_time to create the game start datetime
-        const gameStartDate = new Date(`${game.game_date}T${game.start_time}`);
+        // Parse date as local date to avoid timezone issues
+        const [year, month, day] = game.game_date.split('-').map(Number);
+        const [hours, minutes] = game.start_time.split(':').map(Number);
         
-        // Add 3 hours to the start time
+        // Create date in local timezone
+        const gameStartDate = new Date(year, month - 1, day, hours, minutes || 0);
+        
+        // Add 3 hours to the start date+time
         const archiveTime = new Date(gameStartDate.getTime() + 3 * 60 * 60 * 1000);
         
         // If current time is past the archive time, mark for archiving
         if (now >= archiveTime) {
+          console.log(`Game ${game.id} should be archived: start=${gameStartDate.toISOString()}, archive=${archiveTime.toISOString()}, now=${now.toISOString()}`);
           expiredGameIds.push(game.id);
         }
       }
